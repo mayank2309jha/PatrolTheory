@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twenty Ways to See the Patrol Paper</title>
+  <link rel="stylesheet" href="learn.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <a class="btn ghost small" href="index.html">&larr; Planner</a>
+    <div class="brand">Twenty ways to see the paper <small>Same information, different pictures</small></div>
+    <div class="spacer"></div>
+    <a class="btn ghost small" href="learn.html">Course</a>
+    <a class="btn ghost small" href="beyond.html">Beyond</a>
+  </header>
+
+  <div class="layout">
+    <nav class="toc collapsed" id="toc">
+      <button class="btn ghost small toc-toggle" id="tocToggle">Visuals ▾</button>
+      <h4>Twenty representations</h4>
+      <ol id="tocList"></ol>
+    </nav>
+
+    <main>
+      <div class="lesson">
+        <div class="lesson-head">
+          <div class="eyebrow">A gallery of representations</div>
+          <h1>Twenty ways to see one paper</h1>
+        </div>
+        <p class="lead">A table of numbers and a picture of the same numbers can teach completely different
+          things. Each card below takes one piece of the paper and draws it in the form that suits it best:
+          flows as a Sankey, trade-offs as curves, probabilities as dots you can count, schedules as Gantt
+          bars and clocks, the game itself as a tree, and the randomness as a live simulation.</p>
+        <div class="bigidea"><b>How to read each card</b>
+          <b style="display:inline;color:inherit;text-transform:none;letter-spacing:0;font-size:inherit">Shows</b>: which
+          part of the paper. <b style="display:inline;color:inherit;text-transform:none;letter-spacing:0;font-size:inherit">Why
+            this form</b>: what the picture makes obvious that the table hides. Unless a card says otherwise, the numbers
+          are the paper's own 22-aircraft example (n = 4, 3, 3; v = 30, 20, 10; τ<sub>p</sub> = 3 h; τ<sub>s</sub> = 6 h;
+          T = 30 days; F = 55 h).</div>
+        <div class="legend" id="globalLegend"></div>
+        <div id="cards"></div>
+        <div class="btn-row" style="margin-top:2rem"><a class="btn" href="index.html">← Back to the planner</a><a
+            class="btn ghost" href="learn.html">The paper, section by section</a><a class="btn ghost"
+            href="beyond.html">Taking this idea forward</a></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="tip"></div>
+  <script src="gallery.js"></script>
+</body>
+
+</html>

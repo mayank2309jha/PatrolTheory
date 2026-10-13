@@ -442,12 +442,275 @@ behaved correctly with no crashes or NaNs.
 
 | File | Purpose |
 |---|---|
-| `index.html` | Page structure: the parameter form and the seven output sections. No logic lives here. |
-| `style.css` | Minimal, framework-free styling. |
-| `script.js` | **All** the algorithmic work: the simplex LP solver, Stages 1–3, minimum fleet size, and the four baseline policies, plus the rendering functions that turn results into HTML. |
-| `Explanation.md` | This document. |
+| `index.html` | The planner. Page structure: the parameter form and the seven output sections, plus two later additions (an "Allocation at a glance" container in Stage 1, a "Month playback" container in Stage 3) and two link buttons at the bottom (see §13). No logic lives here. |
+| `style.css` | Minimal, framework-free styling for the planner. The only later addition is `.learn-cta` / `.learn-btn` for the bottom link buttons. |
+| `script.js` | **All** the planner's algorithmic work: the simplex LP solver, Stages 1–3, minimum fleet size, the four baseline policies, the rendering functions, and (added later) the allocation icons and the month playback animation. |
+| `learn.html`, `learn.js`, `learn.css` | The interactive "learn the paper section by section" course (see §13.2). |
+| `gallery.html`, `gallery.js` | "Twenty ways to see the paper": 20 visual representations (see §13.5). Styled by `learn.css`. |
+| `deck.js` | The viva revision deck shown on `learn.html#deck` (see §13.6). |
+| `beyond.html`, `beyond.js` | The "Taking this idea forward" page: the paper's pattern in other contexts (see §13.3). Styled by `learn.css`. |
+| `Explanation.md` | This document. §13 is the running project log, kept up to date so work can resume after a context reset. |
 
 To run: open the folder in an editor with a "Live Server" extension (or any static file server)
 and open `index.html`. The page auto-runs once with the default 22-aircraft scenario on load;
 change any parameter (including adding/removing barrier types) and click **Run Algorithm** to
 recompute everything.
+
+---
+
+## 13. Project log and current state (keep this section up to date)
+
+This section records **everything built so far, why, and how**, so that anyone (including an AI
+assistant whose earlier conversation context has been lost) can pick the work up without redoing
+or undoing anything. Update it whenever the project changes.
+
+### 13.1 Who this is for and how they want changes made
+
+- The owner is an M.Tech student (Sem 3, MTP). The source paper (`patrol_theory_v6 1.pdf`, in this
+  folder) is by their professor. A personal reading summary, `My firsrt Read.pdf`, sits in the parent folder
+  (`16 July/`).
+- **Standing preferences for changes to the planner (`index.html` / `script.js` / `style.css`):**
+  - **Never remove** existing content or functionality. Only *add*, inserting new information in
+    between the existing sections.
+  - **No new styling** on the planner: reuse existing classes (`kv-grid`, `game-value`,
+    `plan-block`, `button`, `secondary`, `muted small`, tables). New visuals use inline SVG
+    attributes rather than new CSS.
+- New learning material goes on **separate pages**, linked by a button at the bottom of the planner.
+- Nothing has been committed to git yet. The repo remote is `github.com/mayank2309jha/PatrolTheory`.
+  Commit only when asked.
+
+### 13.2 Phase 1: the interactive course (`learn.html`, `learn.js`, `learn.css`)
+
+Linked from the planner's bottom button **"Learn the paper interactively →"**.
+
+- One page per paper section (§1–§12) plus a summary, navigated by hash (`learn.html#s5`) via a
+  sidebar and Previous/Next buttons. Each section has a "big idea" box, formulas (KaTeX from the
+  jsDelivr CDN, so formulas need internet; offline they show raw LaTeX), at least one interactive
+  widget, and a check-yourself question. A correct answer ticks the section in a progress bar
+  (stored in `localStorage` key `patrolLearnDone`). There's a searchable Notation drawer. Light and
+  dark themes.
+- **Running example:** the paper's §12 instance (N=22, n=(4,3,3), v=(30,20,10), τp=3, τs=6,
+  T=30 days, F=55 ⇒ μ=3, B_eff=1209). It is editable in §2 and every section recomputes. This is
+  deliberately different from the planner's defaults (v=3,2,1, τs=9).
+- `learn.js` re-implements the maths it needs for K=3 (it doesn't import `script.js`). Stage 2 uses
+  systematic sampling over the fractional parts, which gives the same floor/ceil mix as the
+  planner's simplex for K=3 (verified: 0.4571 / 0.2286 / 0.3143).
+- Widgets by section: §1 pipeline; §2 parameter editor + derivation chain; §3 coverage strips
+  (spread vs bunched); §4 "you are the defender" game with a Remark-3 step button; §5 step-by-step
+  Theorem 1 + water-level chart with fleet-size slider; §6 floor/ceil candidates + spin-the-wheel
+  and 120-month simulation; §7 per-barrier table, phase redraw, attack-timing chart, toy greedy
+  assignment; §8 θ slider; §9 type-your-answer toy exercise + s_A chart; §10 Algorithm 1 runner;
+  §11 design-your-own-mix (Lemma 4 / Theorem 5) + canonical vs floor/ceil table; §12 five-policy chart.
+- **Observations flagged in the course (marked "Look closer", not in the paper):**
+  1. With φ ~ U[0, Δ−W) (Eq. 14), the instant at the start of each cycle is **never covered**.
+     Time-averaged coverage is still W/Δ (Remark 7 holds for a random-time attacker), but an
+     attacker who times the strike at the cycle start always gets through. φ ~ U[0, Δ) with
+     wrap-around gives exactly W/Δ at every instant. Worth raising with the professor.
+  2. Column generation's K canonical columns already reproduce h* exactly (s_k = h*_k/B_eff), so
+     zero gap alone doesn't pick a good mix. The canonical mix has worst month −30 in the running
+     example; §11 explains why floor/ceil is the right choice.
+  3. Table 5 prints Fixed-Deterministic hours as 480/360/360 (= 400 sorties, not 403); its text
+     describes 483/363/363. The game value (−30) is unaffected.
+
+### 13.3 Phase 2: visuals added inside the planner
+
+Added to `script.js` (block "Visuals — icon view … playback", inserted just before the "Wiring"
+section) and called from `runAll()`:
+
+- `renderAllocationVisual(p, d, s1)` → `#stage1Visual` (under the Stage 1 table, heading "Allocation
+  at a glance"). It shows N plane icons coloured by type in proportion to h*_k/B_eff (largest-remainder
+  rounding; an *equivalent* count, since in Stage 3 every aircraft flies for several types), and one
+  shield icon per barrier filled to P_k with a % label. Inactive types get empty shields with a red outline.
+- `setupPlayback(p, d, s3, s1)` → `#playbackOutput` (under the Stage 3 output, heading "Month playback").
+  It animates one Stage-3 plan over the whole period at **1 s = 1 h** (a day = 24 s, 30 days = 12 min).
+  - Controls: plan selector, "Draw a plan at random (by s_j)", Play/Pause, Restart, a scrub bar, and
+    speed 1×/2×/6×/24×.
+  - Aircraft sit at the air base; on each sortie they fly out (first 20% of τp), circle the barrier,
+    and fly back (last 20%).
+  - Barrier rings: green = aircraft overhead, blue = safe period, red outline = unprotected. Each
+    barrier shows its live "% so far".
+  - Live table per type: protected right now, P_k* (Stage 1), this plan's planned coverage, and
+    coverage achieved so far.
+  - **Sorties the greedy assignment couldn't place don't protect their barrier** in the playback.
+    The default Plan A has 7 such sorties.
+  - Colours: `TYPE_COLORS` (8 categorical hues), with an HSL fallback for K > 8.
+
+### 13.4 Phase 3: "Taking this idea forward" (`beyond.html`, `beyond.js`)
+
+Linked from a second bottom button on the planner (**"Taking this idea forward →"**) and from the
+course's summary page. It is a single scrolling page with a sidebar, and its goal is generalising
+the paper's pattern to everyday and non-military decisions:
+
+- **The pattern:** four ingredients (an opponent; they learn your habits; they can't see today's
+  move; limited resources) and six portable lessons (judge by the weakest point; equalise /
+  indifference; deliberately abandon low-value targets; randomise what's observable; keep the
+  randomness tight; know the price).
+- **Concept translator:** maps each paper concept onto viva/exam, penalty kick, poker, commute/safety,
+  portfolio, ticket inspection, and chess openings.
+- **Cases with widgets:**
+  1. **Viva study plan:** the same closed form as Theorem 1. L* = (Σc − H)/Σ(c/w),
+     h_t = c_t(1 − L*/w_t), with topics dropped when w_t ≤ L* (Case 3), compared against the §12-style
+     baselines.
+  2. **Penalty kick:** a 2×2 mixed equilibrium with the indifference chart; default p* ≈ 38% Left.
+  3. **Poker:** balanced bluff share B/(P+2B), caller frequency P/(P+B), and profit per strong hand
+     against a best-responding opponent.
+  4. **Route home:** an interception-risk cap α ⇒ fill the fastest routes up to α (the
+     time-vs-predictability frontier). Randomising is useless when no one is watching.
+  5. **Portfolio:** max–min over 3 scenarios by grid search. Labelled "not investment advice", with a
+     note that splitting ≠ randomising and that execution algorithms randomising orders are the
+     real Stage-3 analogue.
+- **Chess** is the counter-example: perfect information during play (think ahead, don't mix), but
+  the opening repertoire is a mixed strategy.
+- **Real-world deployments** from the paper's ref [1]: ARMOR (LAX), IRIS (Federal Air Marshals),
+  PROTECT (US Coast Guard), TRUSTS (transit fare inspection), PAWS (anti-poaching), plus everyday
+  spot checks.
+- **Decision guide** (4 yes/no questions → which tool to use) and a 10-item "Spot the pattern"
+  exercise.
+
+### 13.5 Phase 4: "Twenty ways to see the paper" (`gallery.html`, `gallery.js`)
+
+Linked from a third bottom button on the planner (**"Twenty ways to see it →"**). It is one scrolling
+page with a sidebar. Each card names the visual form, what it **shows**, **why that form works**, and
+the paper section. Data: the paper's 22-aircraft example (`gallery.js` re-implements the K=3 model).
+Plan A's timetable uses a seeded RNG (`rngSeed(7)`), so the pictures are reproducible.
+
+The 20 forms:
+1. Sankey (B → B_eff → types → barriers)
+2. Bullet chart (budget vs 50% / full-coverage thresholds, with an N slider)
+3. Icon array (100 dots per type; switch policy)
+4. Ternary heatmap (game value over all allocations, with policies plotted)
+5. Line chart with regime bands (z* vs N)
+6. Stacked area (h* vs N)
+7. Dumbbell (U_d spread per policy)
+8. Game tree with information set (toy example, s_A slider)
+9. Lattice / convex-hull geometry (m* inside the floor/ceil triangle)
+10. Waffle (plan probabilities as 100 months)
+11. Diverging heatmap (realised payoff per plan × attacked type, incl. canonical plans)
+12. Animated flowchart (Algorithm 1)
+13. Gantt (first 48 h of plan A)
+14. Radial clock (day 1 coverage rings)
+15. Calendar heatmap (30 × 24 h, barriers protected)
+16. Strip plot (per-barrier p_i per plan vs P*_k)
+17. Bipartite network (aircraft ↔ barriers, hover to highlight)
+18. Small multiples (cumulative coverage converging to p_i)
+19. Monte Carlo animation (catch rate converging to P*_k)
+20. Treemap (area = value vs area = hours)
+
+A notable fact the treemap surfaces: at the optimum, each High barrier gets slightly *fewer* hours
+than each Low barrier (≈120.5 h vs ≈121.5 h), despite triple the value.
+
+### 13.6 Phase 5: light theme + viva revision deck (`learn.html#deck`, `deck.js`)
+
+- `learn.html` now has `<html data-theme="light">`, which forces the light palette in `learn.css`
+  even when the OS is in dark mode. `beyond.html` and `gallery.html` still follow the OS theme;
+  add the same attribute to make them light too.
+- New sidebar page **“✎ Viva revision deck”** (`#deck`, after the Summary). It is excluded from the
+  quiz progress count in `learn.js`.
+- `deck.js` holds **124 points** in paper order, grouped by section (§1–§12 + "Beyond the paper").
+  It covers every Definition (1–6), Theorem (1, 5), Lemma (4), Proposition (2, 3), Remark (1–12) and
+  numbered equation (1–18), plus mathematical tricks, insights, likely examiner questions, and 11
+  **Critical** points:
+  1. Remark 1's "τp − 1" is only valid for integer hours.
+  2. LP (4) has no upper bound h_k ≤ n_kT/μ.
+  3. LP (9)'s slack is forced to 0, so the LP is either exactly feasible or infeasible.
+  4. The column-generation "≤ K+1 iterations" claim cites a support-size result.
+  5. The extra sortie always goes to the first barriers, so H4, M3 and L3 sit at 50%, with payoff 0 < z*.
+  6. The cycle start is never covered.
+  7. Daily vs per-period phase draw.
+  8. Greedy assignment can fail.
+  9. N_min uses N·F rather than B_eff.
+  10. The toy example's "offset by 4 h = τp" typo.
+  11. The empty §10 heading, "unique maximiser" not proven in §11, and the Table 5 inconsistency.
+- Each card shows: current position, original #, type, title, statement, and an optional
+  click-to-toggle detail (proof sketch or Q&A). Its buttons are ⤒ Top / ▲ / ▼ / ⤓ Bottom (▲/▼ swap
+  with the nearest *visible* card when filtered), green "✓ Understood" (+1 each click), red "✗ Not
+  yet" (−1 each click) and a net score.
+- Global controls: search, type filter, reset to paper order, weakest first (sort by net score),
+  expand/collapse all, and reset counters (asks for a second click). A sticky "Now in: §…" bar shows
+  the current subtopic while scrolling.
+- Order and counters persist in `localStorage` key `patrolVivaDeck`. They are per-browser and are
+  not in git.
+- Verified in headless Chrome (system set to dark) with simulated clicks: the order, counters,
+  toggle and light background all behave as intended.
+
+#### 13.6.1 The deck became an editable, Notion-like notebook
+
+- **Add:** use "＋ New point" (goes to the top, in a new section "My notes", `SEC[14]`), or
+  "＋ Add point here" on any section heading (inserted after that section's last point). Points you
+  add have ids `c1, c2, …`, get a blue left border and the label "yours", and sort after the
+  built-ins of their section when you click "Reset to paper order".
+- **Edit:** "✎ Edit" on any card opens an inline editor with section and type dropdowns (type list +
+  "Note"), and editable title, statement and details fields. It has a B / I / subscript /
+  superscript / list toolbar, ⌘/Ctrl+B and I work, ⌘/Ctrl+Enter saves, and Esc cancels. Pasting is
+  converted to plain text. Edited built-ins show an "edited" tag and a "↺ Original" button. If
+  saved content equals the original, the edit record is dropped.
+- **Delete:** 🗑 (asks for a second click). Your own points are removed for good. Built-in points go
+  to `state.deleted` and can be brought back with "↺ Restore deleted (n)", which re-inserts them at
+  their paper position. Cancelling a brand-new, never-saved point discards it.
+- **Backup:** "⬇ Export notes" downloads `viva-deck-notes-YYYY-MM-DD.json` containing the whole state;
+  "⬆ Import notes" loads one back (it checks `app: "patrol-viva-deck"`). localStorage is per-browser,
+  so export regularly.
+- **State** (localStorage `patrolVivaDeck`) is `{order, green, red, edits, custom, deleted, seq}`.
+  Built-in ids are `"p0"…"p123"`; the first version's numeric ids are migrated automatically by
+  `normalise()`.
+- **Verified** in headless Chrome:
+  - a point added in §5 lands after §5's last point;
+  - edit, then revert, works;
+  - delete, then restore, returns the point between #2 and #4;
+  - a cancelled draft disappears;
+  - the state is saved.
+
+### 13.7 How things were verified
+
+- Planner maths (pre-existing): reproduces the paper's toy example and Table 5 (see §10).
+- Course and "beyond" pages: loaded in headless Chrome (a copy with the CDN removed, because the dev
+  sandbox has no internet) with no JS errors, and screenshots were reviewed.
+- Gallery: all 20 cards render with no JS errors in headless Chrome (each card is wrapped in
+  try/catch and would show an inline error); screenshots reviewed in light and dark themes.
+- Planner visuals: smoke-tested in Node with stubbed DOM (default config, and a 3-aircraft 5-type
+  config with inactive types), and screenshots were reviewed in headless Chrome.
+- Headless Chrome on this Mac is slow and often needs to be killed. Use a fresh `--user-data-dir`
+  and an alarm/timeout per page.
+
+### 13.8 Future work / research directions (discussed 2026-10-14, nothing built yet)
+
+The owner's guide said the next step is "making the model more realistic". These were discussed in
+order of priority:
+
+1. **Simulation testbed** (the owner's idea). Set up the game, then simulate months of play:
+   the defender draws a plan and phases, and several attacker models (random-time, patient,
+   timing-aware, learning, own-valuation) play against it. Measure realised payoffs against z*.
+   It becomes the validation tool for every extension below.
+2. **Timing-aware attacker.** φ ~ U[0, Δ−W) leaves cycle starts uncovered. Claim to prove: against
+   an attacker who picks the moment, the guarantee is min over time of the coverage at that moment,
+   which is at most W/Δ, and φ ~ U[0, Δ) with wrap-around achieves exactly W/Δ at every instant, so
+   it is optimal.
+3. **Exact aircraft assignment.** Greedy left 7 of 403 sorties unplaced. Use matching, flow or an
+   ILP; find a feasibility condition; choose phases that are random *and* schedulable; and bring
+   G/τ_r into fleet sizing.
+4. **Value uncertainty and asymmetric values** (the owner's question):
+   - Sensitivity/regret of planning with wrong v_k.
+   - Robust interval values. It stays an LP: with U = v(2P−1), the worst case uses v_lo if P ≥ ½
+     and v_hi otherwise.
+   - Attacker valuing targets differently ⇒ a general-sum security game. The defender must make the
+     *attacker* indifferent using the attacker's payoffs (ORIGAMI/ERASER-style).
+   - Several attacker types ⇒ a Bayesian Stackelberg game (DOBSS, the paper's ref [2]).
+   - Learning attacker preferences from incident data.
+   - Bounded rationality (quantal response / SUQR).
+5. **Other realism:**
+   - imperfect detection (catch probability < 1);
+   - transit time from base to barrier;
+   - routes covering several barriers per sortie (patrolling on graphs);
+   - attack duration;
+   - time-varying values (day/night);
+   - heterogeneous aircraft, maintenance and breakdowns;
+   - partial observability of the policy (the paper's ref [3]);
+   - repeated play with a learning attacker;
+   - non-identical barriers within a type;
+   - a delay before a response arrives.
+
+### 13.9 Ideas not yet done (only if asked)
+
+- Optionally let the planner use the full-cycle phase rule (φ ~ U[0, Δ) with wrap) as a toggle.
+- Commit and push to GitHub when the owner asks.
+

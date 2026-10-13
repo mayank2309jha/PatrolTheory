@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taking This Idea Forward — One Pattern, Many Places</title>
+  <link rel="stylesheet" href="learn.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <a class="btn ghost small" href="index.html">&larr; Planner</a>
+    <div class="brand">Taking this idea forward <small>The patrol paper's pattern, outside war-gaming</small></div>
+    <div class="spacer"></div>
+    <a class="btn ghost small" href="learn.html">The paper, section by section</a>
+  </header>
+
+  <div class="layout">
+    <nav class="toc collapsed" id="toc">
+      <button class="btn ghost small toc-toggle" id="tocToggle">Sections ▾</button>
+      <h4>On this page</h4>
+      <ol id="tocList">
+        <li><a href="#pattern"><span class="num">1</span><span>The pattern, stripped down</span></a></li>
+        <li><a href="#translator"><span class="num">2</span><span>Translate it to anything</span></a></li>
+        <li><a href="#viva"><span class="num">3</span><span>Preparing for a viva</span></a></li>
+        <li><a href="#penalty"><span class="num">4</span><span>A penalty kick</span></a></li>
+        <li><a href="#poker"><span class="num">5</span><span>Bluffing at poker</span></a></li>
+        <li><a href="#route"><span class="num">6</span><span>Your route home</span></a></li>
+        <li><a href="#portfolio"><span class="num">7</span><span>A portfolio</span></a></li>
+        <li><a href="#chess"><span class="num">8</span><span>Chess: where it breaks</span></a></li>
+        <li><a href="#real"><span class="num">9</span><span>Deployed in the real world</span></a></li>
+        <li><a href="#guide"><span class="num">10</span><span>Should I use it? A guide</span></a></li>
+        <li><a href="#spot"><span class="num">11</span><span>Spot the pattern</span></a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <div class="lesson">
+
+        <!-- ======================================================= 1 -->
+        <section id="pattern" class="lesson">
+          <div class="lesson-head">
+            <div class="eyebrow">Taking this idea forward</div>
+            <h1>One pattern, many places</h1>
+          </div>
+          <p class="lead">Strip away the aircraft and barriers and the paper is about something very general:
+            <b>how to spend limited effort when someone on the other side is watching how you behave and will
+              aim at your weakest point</b>. That situation turns up in exams, sport, cards, money, your commute
+            and code review. Once you can see its outline, you start noticing it everywhere. Just as important,
+            you'll notice where it <em>doesn't</em> apply.</p>
+
+          <div class="bigidea"><b>The four ingredients</b>
+            The paper's machinery is worth using when all four are present:
+            <ol style="margin:.4rem 0 0">
+              <li><strong>An opponent</strong> whose gain is (roughly) your loss.</li>
+              <li>They <strong>learn your habits</strong> (your policy) over time…</li>
+              <li>…but <strong>can't see today's move</strong> before committing to theirs.</li>
+              <li>You have <strong>too little to protect everything</strong>.</li>
+            </ol>
+          </div>
+
+          <h2>Six portable lessons</h2>
+          <p>Each is a result from the paper, rewritten as a habit of thought you can carry anywhere.</p>
+          <ol class="steps">
+            <li><b>Judge a plan by its weakest point, not its average.</b> If someone can choose where to hit you,
+              your plan is only as good as its worst target. (Max–min, §4)</li>
+            <li><b>Equalise.</b> At the best plan the opponent is <em>indifferent</em>: every target is equally
+              unattractive. If one spot is clearly the weakest, shift effort there. (Remark 3)</li>
+            <li><b>Sometimes abandon something, deliberately.</b> When resources are very short, leaving a
+              low-value target completely open can be the optimal choice, not a failure. (§5.3, Case 3)</li>
+            <li><b>Randomise what they can observe.</b> A predictable routine is a gift to anyone watching. A known
+              rule with a hidden draw is much harder to exploit. (Stage 2, Stage 3, Fixed-patrol baseline)</li>
+            <li><b>Keep the randomness tight.</b> Being “wildly unpredictable” only creates bad days a patient
+              opponent will wait for. Vary as little as needed. (Theorem 5, floor/ceiling)</li>
+            <li><b>Know the price.</b> Ask how many resources you need to reach a target level of safety, and
+              what each extra unit buys. (§8, minimum fleet size)</li>
+          </ol>
+        </section>
+
+        <!-- ======================================================= 2 -->
+        <section id="translator" class="lesson">
+          <h2>Translate it to anything</h2>
+          <p>Every concept in the paper has a counterpart in each setting below. Pick one and read down the
+            column: the paper's vocabulary becomes a checklist for thinking about the new problem.</p>
+          <div class="widget">
+            <div class="widget-title">The concept translator</div>
+            <div class="seg" id="trPick" style="flex-wrap:wrap"></div>
+            <div class="tbl-wrap" style="margin-top:.8rem">
+              <table class="tbl" id="trTable"></table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 3 -->
+        <section id="viva" class="lesson">
+          <h2>Case 1 · Preparing for a viva (exactly Stage 1)</h2>
+          <p>An examiner who knows the syllabus, and soon learns how you think, will probe your
+            <b>weakest topic</b>. You have a fixed number of study hours. This is not just an analogy: it is
+            <em>the same mathematics</em> as Stage 1. Topics are barrier types, study hours are flying hours,
+            and the examiner is the attacker.</p>
+          <ul>
+            <li>Mastery of topic t after h<sub>t</sub> hours: P<sub>t</sub> = h<sub>t</sub>/c<sub>t</sub>, where
+              c<sub>t</sub> is the hours needed for full mastery (cf. P<sub>k</sub> = μh<sub>k</sub>/n<sub>k</sub>T).</li>
+            <li>If asked about topic t you lose w<sub>t</sub>(1 − P<sub>t</sub>) marks. The examiner asks where you
+              lose most.</li>
+            <li>Minimise the worst loss ⇒ equalise the losses ⇒ a closed form just like Theorem 1:
+              L* = (Σc<sub>t</sub> − H) / Σ(c<sub>t</sub>/w<sub>t</sub>), and h*<sub>t</sub> = c<sub>t</sub>(1 −
+              L*/w<sub>t</sub>). A topic with w<sub>t</sub> ≤ L* gets <b>zero hours</b>: Case 3 again.</li>
+          </ul>
+          <div class="widget">
+            <div class="widget-title">Plan your study hours</div>
+            <p class="widget-sub">Edit the topics. Marks = what's at stake if that topic is probed; hours to
+              master = how much work full confidence takes.</p>
+            <div class="tbl-wrap">
+              <table class="tbl" id="vivaEdit"></table>
+            </div>
+            <div class="controls">
+              <div class="ctl"><label for="vivaH">Total study hours you have <output id="vivaHOut"></output></label><input
+                  type="range" id="vivaH" min="0" step="1"></div>
+            </div>
+            <div class="seg" id="vivaStrat" style="flex-wrap:wrap"></div>
+            <div class="chart" id="vivaChart" style="margin-top:.6rem"></div>
+            <div class="tbl-wrap">
+              <table class="tbl" id="vivaTable"></table>
+            </div>
+            <p class="widget-sub" id="vivaMsg"></p>
+          </div>
+          <p>These are the same four baselines as the paper's §12, and they fail for the same reasons.
+            “Equal hours” ignores that topics differ. “Proportional to marks” over-studies the big topic.
+            “Biggest topic first” leaves a topic untouched for the examiner to find. In real life this doesn't
+            mean “study nothing for small topics”. It means that when time is truly short, <em>deliberately</em>
+            skipping a low-stakes topic can beat spreading yourself thin.</p>
+        </section>
+
+        <!-- ======================================================= 4 -->
+        <section id="penalty" class="lesson">
+          <h2>Case 2 · A penalty kick (indifference, Remark 3)</h2>
+          <p>The kicker picks a side; the goalkeeper must dive before seeing the ball. Keepers study scouting
+            reports, so they know a kicker's <em>tendencies</em> but not this kick. That is all four
+            ingredients. The kicker is the defender and the keeper is the attacker who best-responds to the
+            known tendency.</p>
+          <div class="widget">
+            <div class="widget-title">You are the kicker</div>
+            <p class="widget-sub">Chance of scoring for each (kick, dive) pair. These numbers are illustrative;
+              edit them. Most right-footed kickers are stronger to their natural side (here, Left).</p>
+            <div class="tbl-wrap">
+              <table class="tbl" id="penEdit"></table>
+            </div>
+            <div class="controls">
+              <div class="ctl"><label for="penP">How often you kick Left <output id="penPOut"></output></label><input
+                  type="range" id="penP" min="0" max="1" step="0.01" value="0.8"></div>
+            </div>
+            <div class="chart" id="penChart"></div>
+            <div class="legend" id="penLegend"></div>
+            <div class="stats" id="penStats"></div>
+            <p class="widget-sub" id="penMsg"></p>
+          </div>
+          <p><b>The counter-intuitive bit:</b> the optimal kicker goes to their <em>stronger</em> side
+            <em>less</em> often than you'd guess. That isn't because it's worse, but because the keeper would
+            otherwise lean that way. Just as in Stage 1, you don't maximise what you're best at; you make the
+            opponent indifferent. Economists who studied thousands of professional penalties found that players'
+            mixing was remarkably close to this kind of equilibrium prediction.</p>
+        </section>
+
+        <!-- ======================================================= 5 -->
+        <section id="poker" class="lesson">
+          <h2>Case 3 · Bluffing at poker (making their choice irrelevant)</h2>
+          <p>You bet; your opponent holds a hand that beats only a bluff and must decide whether to call. They
+            know your tendencies over many hands but not this hand. If you never bluff, they always fold and you
+            win small. If you bluff too much, they always call. The right bluffing frequency makes them
+            <b>indifferent</b> between calling and folding, exactly like z* equalising the barrier types.</p>
+          <div class="widget">
+            <div class="widget-title">How often should a bet be a bluff?</div>
+            <div class="controls">
+              <div class="ctl"><label for="pkPot">Pot before your bet <output id="pkPotOut"></output></label><input
+                  type="range" id="pkPot" min="10" max="200" step="5" value="100"></div>
+              <div class="ctl"><label for="pkBet">Your bet <output id="pkBetOut"></output></label><input type="range"
+                  id="pkBet" min="5" max="300" step="5" value="50"></div>
+              <div class="ctl"><label for="pkF">Fraction of your bets that are bluffs <output
+                    id="pkFOut"></output></label><input type="range" id="pkF" min="0" max="0.8" step="0.01"
+                  value="0.4"></div>
+            </div>
+            <div class="chart" id="pkChart"></div>
+            <div class="stats" id="pkStats"></div>
+            <p class="widget-sub" id="pkMsg"></p>
+          </div>
+          <p>The balanced frequency B/(P + 2B) depends only on the bet-to-pot ratio, much as d<sub>k</sub>
+            depends only on the barrier's numbers. It is a <em>policy</em> chosen in advance; which hands
+            you actually bluff with is the hidden daily draw.</p>
+        </section>
+
+        <!-- ======================================================= 6 -->
+        <section id="route" class="lesson">
+          <h2>Case 4 · Your route home (the price of unpredictability)</h2>
+          <p>Choosing a route against <b>traffic</b> has no opponent: traffic doesn't learn your habits, so
+            randomising buys nothing. Take the fastest route, or the one with the best worst case if lateness is
+            costly. But if <b>someone is watching your routine</b>, the paper's Fixed-patrol baseline applies:
+            a perfectly predictable route can be intercepted 100% of the time. That someone might be a stalker,
+            a pickpocket gang, or a paparazzo; personal-safety advice to “vary your routes” is this idea. The
+            question then becomes: how much travel time should you pay for unpredictability?</p>
+          <div class="widget">
+            <div class="widget-title">Trade travel time for unpredictability</div>
+            <div class="tbl-wrap">
+              <table class="tbl" id="rtEdit"></table>
+            </div>
+            <div class="controls">
+              <div class="ctl" style="flex:0 0 auto"><label>Is anyone watching?</label>
+                <div class="seg" id="rtWatch"><button data-v="0">No: only traffic</button><button data-v="1"
+                    class="on">Yes: someone learns your routine</button></div>
+              </div>
+              <div class="ctl"><label for="rtA">Highest chance you'll allow on any one route <output
+                    id="rtAOut"></output></label><input type="range" id="rtA" min="0.25" max="1" step="0.01"
+                  value="0.5"></div>
+            </div>
+            <div class="chart" id="rtChart"></div>
+            <div class="stats" id="rtStats"></div>
+            <p class="widget-sub" id="rtMsg"></p>
+          </div>
+          <p>Notice the optimal mix: fill the fastest route up to the cap, then the next fastest, and so on. Like
+            the floor/ceiling rule, you only vary as much as you need to. A watcher waits on your most likely
+            route, so your risk is the <em>largest</em> probability, not the average.</p>
+        </section>
+
+        <!-- ======================================================= 7 -->
+        <section id="portfolio" class="lesson">
+          <h2>Case 5 · A portfolio (max–min against a pessimistic world)</h2>
+          <div class="note warn"><b>Not investment advice.</b> The returns below are made-up round numbers to
+            show the structure of the decision.</div>
+          <p>Markets are not a single attacker choosing your worst scenario. But if you <em>assume</em> the world
+            may deal you the worst of a few scenarios, choosing weights becomes Stage 1's LP: maximise z subject
+            to z ≤ your return in each scenario. Two differences from the paper are worth noticing. Here you
+            <b>split</b> money rather than <b>randomise</b> it, like the continuous h* before Stage 2 turns it
+            into whole sorties. And max–min is a <em>choice of attitude</em> (robustness), not a fact about
+            markets.</p>
+          <div class="widget">
+            <div class="widget-title">Choose weights; the world picks your worst scenario</div>
+            <div class="tbl-wrap">
+              <table class="tbl" id="pfEdit"></table>
+            </div>
+            <div class="controls">
+              <div class="ctl"><label for="pfS">Stocks <output id="pfSOut"></output></label><input type="range" id="pfS"
+                  min="0" max="1" step="0.01" value="0.6"></div>
+              <div class="ctl"><label for="pfB">Bonds <output id="pfBOut"></output></label><input type="range" id="pfB"
+                  min="0" max="1" step="0.01" value="0.3"></div>
+              <div class="ctl" style="flex:0 0 120px"><label>Gold <output id="pfGOut"></output></label><small
+                  class="widget-sub" style="margin:0">= the rest</small></div>
+            </div>
+            <div id="pfBars"></div>
+            <div class="btn-row"><button class="btn small" id="pfOpt">Show the max–min weights</button><button
+                class="btn ghost small" id="pfEq">Equal thirds</button><button class="btn ghost small" id="pfAll">All
+                stocks</button></div>
+            <div class="stats" id="pfStats"></div>
+          </div>
+          <p><b>Where “stock picking” fits.</b> Picking one stock against the market isn't a Stackelberg game:
+            the market doesn't adapt to <em>your</em> habits. One corner of finance does match the pattern
+            closely, though. A large, predictable trader can be exploited by others who spot the pattern and
+            trade ahead of them. Execution algorithms therefore often vary the size and timing of their orders:
+            Stage 3's phase randomisation, with traders instead of aircraft.</p>
+        </section>
+
+        <!-- ======================================================= 8 -->
+        <section id="chess" class="lesson">
+          <h2>Case 6 · Chess: a useful place where the pattern breaks</h2>
+          <p>During a chess game your opponent <b>sees your move before making theirs</b>. That breaks ingredient
+            3. With nothing hidden, randomising a move can't help you in theory: chess has a deterministic best
+            strategy (even if no one can compute it). The right tool there is <b>looking ahead</b>
+            (minimax search), not mixing.</p>
+          <p>But <em>before</em> the game, something is hidden: which opening you will choose. Strong players
+            prepare deeply against an opponent's favourite lines. A player with one opening is the paper's
+            Fixed-patrol baseline: fully predictable, fully prepared against. A <b>repertoire</b> played with
+            some randomness is a mixed strategy, with exactly the trade-off of the route widget above. Your best
+            line is like the fastest route; each extra line costs study time and buys unpredictability.</p>
+          <div class="note"><b>The general lesson:</b> ask <em>what can the other side see, and when?</em> If
+            they see your move before acting, think ahead. If they only know your habits, mix. Many real
+            situations, chess included, contain both phases.</div>
+        </section>
+
+        <!-- ======================================================= 9 -->
+        <section id="real" class="lesson">
+          <h2>Deployed in the real world</h2>
+          <p>The paper's reference [1] (Tambe, <em>Security and Game Theory</em>, 2011) describes Stackelberg
+            security games that were actually deployed. They are the same model as the patrol paper, with
+            different “barriers”:</p>
+          <div class="tbl-wrap">
+            <table class="tbl" style="white-space:normal">
+              <tr>
+                <th>System</th>
+                <th style="text-align:left">Defender → Targets</th>
+                <th style="text-align:left">What gets randomised</th>
+              </tr>
+              <tr>
+                <td>ARMOR</td>
+                <td style="text-align:left;white-space:normal">LA International Airport police → road checkpoints and
+                  terminals</td>
+                <td style="text-align:left;white-space:normal">Where checkpoints and canine patrols are placed each day
+                </td>
+              </tr>
+              <tr>
+                <td>IRIS</td>
+                <td style="text-align:left;white-space:normal">US Federal Air Marshals → flights</td>
+                <td style="text-align:left;white-space:normal">Which flights carry a marshal</td>
+              </tr>
+              <tr>
+                <td>PROTECT</td>
+                <td style="text-align:left;white-space:normal">US Coast Guard → port and ferry targets</td>
+                <td style="text-align:left;white-space:normal">Patrol routes and timing</td>
+              </tr>
+              <tr>
+                <td>TRUSTS</td>
+                <td style="text-align:left;white-space:normal">Transit police → train lines and stations</td>
+                <td style="text-align:left;white-space:normal">Fare-inspection schedules</td>
+              </tr>
+              <tr>
+                <td>PAWS</td>
+                <td style="text-align:left;white-space:normal">Wildlife rangers → park areas</td>
+                <td style="text-align:left;white-space:normal">Anti-poaching patrol routes</td>
+              </tr>
+            </table>
+          </div>
+          <p>Closer to everyday life, the same idea shows up wherever someone does <b>spot checks</b>: random tax
+            audits, surprise inspections, random drug testing, unannounced fire drills, a manager reviewing a
+            random sample of pull requests, a teacher's pop quiz. In each, the checker can't cover everything,
+            the checked party knows the policy, and a predictable schedule invites gaming. The paper's “coverage
+            probability” becomes the probability of being checked.</p>
+        </section>
+
+        <!-- ======================================================= 10 -->
+        <section id="guide" class="lesson">
+          <h2>Should I use this idea? A four-question guide</h2>
+          <p>Before reaching for game theory, answer these about your decision. The guide tells you which tool
+            fits, including when the right answer is “not this one”.</p>
+          <div class="widget">
+            <div class="widget-title">Decision guide</div>
+            <div id="guideQs"></div>
+            <div class="note" id="guideOut"></div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 11 -->
+        <section id="spot" class="lesson">
+          <h2>Spot the pattern</h2>
+          <p>For each situation, pick the right way of thinking. Seeing things you couldn't see before mostly
+            means sorting new problems into the right bucket quickly.</p>
+          <div class="widget">
+            <div class="widget-title">Which tool fits?</div>
+            <div id="spotList"></div>
+            <p class="widget-sub" id="spotScore"></p>
+          </div>
+          <div class="btn-row" style="margin-top:1.5rem"><a class="btn" href="index.html">← Back to the planner</a><a
+              class="btn ghost" href="learn.html">Review the paper section by section</a></div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <div id="tip"></div>
+  <script src="beyond.js"></script>
+</body>
+
+</html>

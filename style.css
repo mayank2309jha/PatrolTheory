@@ -135,3 +135,17 @@ button.secondary:hover { background: #666; }
 }
 
 footer { margin-top: 2rem; text-align: center; }
+
+.learn-cta { text-align: center; background: var(--bg-alt); }
+.learn-cta h2 { border-bottom: none; }
+.learn-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  padding: 0.7rem 1.4rem;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.learn-btn:hover { background: #164b8f; }

@@ -657,6 +657,294 @@ function renderBaselines(p, s1, bl) {
 }
 
 /* ============================================================
+   Visuals — icon view of the Stage-1 allocation and an animated
+   playback of a Stage-3 plan over the whole period (1 s = 1 h)
+   ============================================================ */
+
+const TYPE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const typeColor = k => TYPE_COLORS[k] || `hsl(${(k * 47) % 360}, 60%, 45%)`;
+
+const PLANE_PATH = 'M12 0 L4 -2 L-2 -9 L-5 -9 L-2 -2 L-8 -2 L-10 -5 L-12 -5 L-11 0 L-12 5 L-10 5 L-8 2 L-2 2 L-5 9 L-2 9 L4 2 Z';
+const SHIELD_PATH = 'M0 -13 L11 -9 L11 0 C11 7 6 11 0 14 C-6 11 -11 7 -11 0 L-11 -9 Z';
+
+function renderAllocationVisual(p, d, s1) {
+  const el = document.getElementById('stage1Visual');
+  if (!s1.feasible) { el.innerHTML = ''; return; }
+
+  // Fleet strip: split the N aircraft across types in proportion to h_k* (largest remainder).
+  const share = s1.h.map(h => (d.B_eff > 0 ? (p.N * h) / d.B_eff : 0));
+  const planes = share.map(Math.floor);
+  let left = p.N - planes.reduce((a, b) => a + b, 0);
+  share.map((x, k) => [x - Math.floor(x), k]).sort((a, b) => b[0] - a[0]).forEach(([, k]) => { if (left > 0) { planes[k]++; left--; } });
+
+  const W = 760, perRow = 19, cell = 38;
+  const fleetRows = Math.ceil(p.N / perRow);
+  let svg = '', y = 10;
+  svg += `<text x="0" y="${y + 12}" font-size="13" font-weight="600">Fleet: ${p.N} aircraft, coloured by the share of flying hours each type receives (h_k* / B_eff)</text>`;
+  y += 26;
+  let idx = 0;
+  planes.forEach((cnt, k) => {
+    for (let c = 0; c < cnt; c++, idx++) {
+      const x = 20 + (idx % perRow) * cell, yy = y + Math.floor(idx / perRow) * 34 + 12;
+      svg += `<g transform="translate(${x},${yy}) rotate(-90)"><path d="${PLANE_PATH}" fill="${typeColor(k)}"><title>Aircraft-equivalent of Type ${k + 1} flying hours</title></path></g>`;
+    }
+  });
+  y += fleetRows * 34 + 18;
+
+  // One row of shield icons per barrier type, each filled up to P_k.
+  const shieldsPerRow = 11;
+  for (let k = 0; k < p.K; k++) {
+    const active = s1.active.includes(k);
+    const Pk = Math.min(1, Math.max(0, s1.P[k]));
+    svg += `<text x="0" y="${y + 12}" font-size="13" font-weight="600" fill="${typeColor(k)}">Type ${k + 1}</text>`;
+    svg += `<text x="70" y="${y + 12}" font-size="12">n = ${p.n[k]}, v = ${p.v[k]} · h* = ${fmt(s1.h[k], 1)} h (${fmt(s1.h[k] / p.tau_p, 1)} sorties) · ≈ ${planes[k]} aircraft · each barrier defended <tspan font-weight="700">${fmt(Pk * 100, 1)}%</tspan> of the time${active ? '' : ' — inactive'}</text>`;
+    y += 22;
+    const rows = Math.ceil(p.n[k] / shieldsPerRow);
+    for (let i = 0; i < p.n[k]; i++) {
+      const cx = 30 + (i % shieldsPerRow) * 66, cy = y + Math.floor(i / shieldsPerRow) * 62 + 20;
+      const clipId = `shc-${k}-${i}`;
+      const fillTop = 14 - 27 * Pk;
+      svg += `<g transform="translate(${cx},${cy}) scale(1.35)">
+        <clipPath id="${clipId}"><rect x="-12" y="${fillTop}" width="24" height="${27 * Pk}"/></clipPath>
+        <path d="${SHIELD_PATH}" fill="#f2f2f2" stroke="${active ? typeColor(k) : '#b00020'}" stroke-width="1.6"/>
+        <path d="${SHIELD_PATH}" fill="${typeColor(k)}" clip-path="url(#${clipId})"/>
+        <title>Type ${k + 1}, barrier ${i + 1}: P = ${fmt(Pk * 100, 1)}%</title></g>
+        <text x="${cx}" y="${cy + 32}" font-size="11" text-anchor="middle">B${i + 1} · ${fmt(Pk * 100, 0)}%</text>`;
+    }
+    y += rows * 62 + 14;
+  }
+
+  el.innerHTML = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${y}" width="100%" style="min-width:640px;font-family:inherit" role="img" aria-label="Fleet and barrier coverage icons">${svg}</svg></div>
+    <p class="muted small">Each shield is one barrier; the coloured fill is its coverage probability P<sub>k</sub> = &mu;h<sub>k</sub>/(n<sub>k</sub>T).
+    The aircraft colours show how the fleet's total flying hours are split between types (an equivalent count — in Stage 3 every aircraft flies sorties for several types).</p>`;
+}
+
+/* ---------------- Month playback ---------------- */
+
+let playback = null;
+
+function setupPlayback(p, d, s3, s1) {
+  if (playback && playback.raf) cancelAnimationFrame(playback.raf);
+  playback = null;
+  const el = document.getElementById('playbackOutput');
+  if (!s3.plans || !s3.plans.length) { el.innerHTML = ''; return; }
+
+  const totalSec = d.T; // 1 s per hour
+  el.innerHTML = `
+    <p class="muted small">Every shield is a barrier, every plane is an aircraft. Aircraft wait at the base, fly out to their barrier for
+    a sortie of &tau;<sub>p</sub> = ${fmt(p.tau_p, 1)} h, circle it and return. Barrier colours: <b style="color:#0a7d28">green</b> = aircraft overhead,
+    <b style="color:#1a5fb4">blue</b> = within its safe period, <b style="color:#b00020">red outline</b> = unprotected. One second of playback is one hour,
+    so a day takes 24 s and the full ${p.T_days}-day period takes ${Math.floor(totalSec / 60)} min ${Math.round(totalSec % 60)} s at 1&times;.</p>
+    <div class="button-row" style="flex-wrap:wrap;align-items:center">
+      <label class="small">Plan
+        <select id="pbPlan">${s3.plans.map((pl, j) => `<option value="${j}">Plan ${pl.label} (probability ${fmt(pl.prob, 3)})</option>`).join('')}</select>
+      </label>
+      <button id="pbDraw" class="secondary">Draw a plan at random (by s<sub>j</sub>)</button>
+      <button id="pbPlay">&#9654; Play</button>
+      <button id="pbRestart" class="secondary">Restart</button>
+      <label class="small">Speed
+        <select id="pbSpeed">
+          <option value="1" selected>1&times; (1 s = 1 h)</option>
+          <option value="2">2&times;</option><option value="6">6&times;</option><option value="24">24&times; (1 s = 1 day)</option>
+        </select>
+      </label>
+    </div>
+    <div class="game-value" id="pbClock"></div>
+    <input type="range" id="pbScrub" min="0" max="${d.T}" step="0.1" value="0" style="width:100%">
+    <div id="pbStage" style="overflow-x:auto"></div>
+    <div id="pbStats"></div>`;
+
+  playback = { p, d, s3, s1, t: 0, playing: false, speed: 1, raf: null, last: null };
+  loadPlaybackPlan(0);
+
+  document.getElementById('pbPlan').addEventListener('change', e => loadPlaybackPlan(+e.target.value));
+  document.getElementById('pbDraw').addEventListener('click', () => {
+    let u = Math.random(), j = 0;
+    for (; j < s3.plans.length - 1; j++) { u -= s3.plans[j].prob; if (u < 0) break; }
+    document.getElementById('pbPlan').value = j;
+    loadPlaybackPlan(j);
+  });
+  document.getElementById('pbPlay').addEventListener('click', () => setPlaying(!playback.playing));
+  document.getElementById('pbRestart').addEventListener('click', () => { playback.t = 0; drawPlayback(); });
+  document.getElementById('pbSpeed').addEventListener('change', e => { playback.speed = +e.target.value; });
+  document.getElementById('pbScrub').addEventListener('input', e => { playback.t = +e.target.value; drawPlayback(); });
+}
+
+function setPlaying(on) {
+  const pb = playback;
+  pb.playing = on;
+  document.getElementById('pbPlay').innerHTML = on ? '&#10073;&#10073; Pause' : '&#9654; Play';
+  if (on) {
+    if (pb.t >= pb.d.T) pb.t = 0;
+    pb.last = null;
+    const tick = now => {
+      if (!pb.playing || playback !== pb) return;
+      if (pb.last !== null) pb.t = Math.min(pb.d.T, pb.t + ((now - pb.last) / 1000) * pb.speed);
+      pb.last = now;
+      drawPlayback();
+      if (pb.t >= pb.d.T) { setPlaying(false); return; }
+      pb.raf = requestAnimationFrame(tick);
+    };
+    pb.raf = requestAnimationFrame(tick);
+  } else if (pb.raf) cancelAnimationFrame(pb.raf);
+}
+
+function loadPlaybackPlan(j) {
+  const pb = playback, { p, d } = pb;
+  const plan = pb.s3.plans[j].plan;
+  pb.planIdx = j;
+  pb.t = 0;
+
+  // Layout: base on the left, barriers in rows by type on the right.
+  const W = 1000, baseCols = 4, slot = 48, baseX = 20, baseY = 40;
+  const barX0 = 280, barCell = 110, barCols = Math.max(1, Math.floor((W - barX0 - 10) / barCell));
+  const barriers = plan.barrierSchedules.map(bs => ({ ...bs }));
+  let y = 30;
+  const rowsByType = {};
+  barriers.forEach(b => { (rowsByType[b.type] = rowsByType[b.type] || []).push(b); });
+  Object.keys(rowsByType).forEach(k => {
+    const list = rowsByType[k];
+    list.forEach((b, i) => { b.x = barX0 + (i % barCols) * barCell + barCell / 2; b.y = y + 62 + Math.floor(i / barCols) * 108; });
+    rowsByType[k].labelY = y + 10;
+    y += Math.ceil(list.length / barCols) * 108 + 24;
+  });
+  const baseRows = Math.ceil(p.N / baseCols);
+  const H = Math.max(y, baseY + baseRows * slot + 40);
+
+  // Only sorties that an aircraft actually flies protect a barrier; unassigned ones are skipped.
+  barriers.forEach(b => { b.key = `${b.type}-${b.barrierIdx}`; });
+  barriers.forEach(b => {
+    b.starts = plan.events.filter(ev => ev.aircraft !== null && ev.aircraft !== undefined && `${ev.type}-${ev.barrierIdx}` === b.key)
+      .map(ev => ev.start).sort((a, c) => a - c);
+  });
+  const barrierByKey = {};
+  barriers.forEach(b => { barrierByKey[b.key] = b; });
+
+  const aircraft = Array.from({ length: p.N }, (_, i) => ({
+    home: [baseX + 20 + (i % baseCols) * slot, baseY + 20 + Math.floor(i / baseCols) * slot],
+    sorties: [],
+  }));
+  plan.events.forEach(ev => {
+    if (ev.aircraft !== null && ev.aircraft !== undefined) aircraft[ev.aircraft].sorties.push({ start: ev.start, b: barrierByKey[`${ev.type}-${ev.barrierIdx}`] });
+  });
+  aircraft.forEach(a => a.sorties.sort((x, z) => x.start - z.start));
+  pb.barriers = barriers; pb.aircraft = aircraft;
+  pb.totalSorties = plan.events.length;
+  pb.unassigned = plan.unassigned;
+
+  let svg = `<defs><path id="pbPlaneShape" d="${PLANE_PATH}"/><path id="pbShieldShape" d="${SHIELD_PATH}"/></defs>`;
+  svg += `<rect x="${baseX}" y="${baseY - 22}" width="${baseCols * slot + 20}" height="${baseRows * slot + 34}" rx="8" fill="#f7f7f8" stroke="#d5d5d5"/>`;
+  svg += `<text x="${baseX + 10}" y="${baseY - 6}" font-size="13" font-weight="600">Air base</text>`;
+  Object.keys(rowsByType).forEach(k => {
+    svg += `<text x="${barX0}" y="${rowsByType[k].labelY}" font-size="13" font-weight="600" fill="${typeColor(+k)}">Type ${+k + 1} barriers (v = ${p.v[k]})</text>`;
+  });
+  barriers.forEach((b, i) => {
+    svg += `<g transform="translate(${b.x},${b.y})">
+      <circle id="pbHalo${i}" r="33" fill="none" stroke-width="3"/>
+      <use href="#pbShieldShape" id="pbShield${i}" transform="scale(1.7)" stroke-width="1.6"/>
+      <text y="5" font-size="12" text-anchor="middle" font-weight="700" fill="#fff">B${b.barrierIdx + 1}</text>
+      <text id="pbCov${i}" y="52" font-size="12" text-anchor="middle"></text>
+      <title>Type ${b.type + 1}, barrier ${b.barrierIdx + 1}: ${b.q} sorties, every ${b.delta ? fmt(b.delta, 1) : '—'} h, planned coverage ${fmt(b.prob * 100, 1)}%</title></g>`;
+  });
+  aircraft.forEach((a, i) => {
+    svg += `<g id="pbAc${i}"><use href="#pbPlaneShape" id="pbAcShape${i}"/><text id="pbAcLbl${i}" y="20" font-size="10" text-anchor="middle">${i + 1}</text><title>AC-${i + 1}</title></g>`;
+  });
+  document.getElementById('pbStage').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:720px;font-family:inherit" role="img" aria-label="Animated patrol playback">${svg}</svg>`;
+  drawPlayback();
+}
+
+// Index of the last element of a sorted array with value <= t (−1 if none).
+function lastAtOrBefore(arr, t, key = x => x) {
+  let lo = 0, hi = arr.length - 1, ans = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (key(arr[m]) <= t) { ans = m; lo = m + 1; } else hi = m - 1; }
+  return ans;
+}
+
+function drawPlayback() {
+  const pb = playback, { p, d } = pb, t = pb.t;
+  const tauP = p.tau_p, W = d.W;
+  document.getElementById('pbScrub').value = t;
+  document.getElementById('pbClock').textContent =
+    `${fmtDayTime(t)}  ·  hour ${fmt(t, 1)} of ${fmt(d.T, 0)}  ·  ${fmt((t / d.T) * 100, 1)}% of the period`;
+
+  // Barriers: state now + covered time so far (union of windows clipped to [0, t]).
+  const typeNow = {};
+  pb.barriers.forEach((b, i) => {
+    let state = 'open', covered = 0, prevEnd = -Infinity;
+    const last = lastAtOrBefore(b.starts, t);
+    for (let j = 0; j <= last; j++) {
+      const s = b.starts[j], e = Math.min(t, s + W);
+      if (e > Math.max(s, prevEnd)) covered += e - Math.max(s, prevEnd);
+      prevEnd = Math.max(prevEnd, s + W);
+    }
+    if (last >= 0) {
+      const since = t - b.starts[last];
+      if (since < tauP) state = 'overhead'; else if (since < W) state = 'safe';
+    }
+    const shield = document.getElementById(`pbShield${i}`), halo = document.getElementById(`pbHalo${i}`);
+    shield.setAttribute('fill', state === 'open' ? '#e9e9ec' : typeColor(b.type));
+    shield.setAttribute('fill-opacity', state === 'safe' ? 0.55 : 1);
+    shield.setAttribute('stroke', state === 'open' ? '#b00020' : typeColor(b.type));
+    halo.setAttribute('stroke', state === 'overhead' ? '#0a7d28' : state === 'safe' ? '#1a5fb4' : 'none');
+    const sofar = t > 0 ? covered / t : 0;
+    document.getElementById(`pbCov${i}`).textContent = `${fmt(sofar * 100, 0)}% so far`;
+    const k = b.type;
+    typeNow[k] = typeNow[k] || { covered: 0, n: 0, sum: 0, plan: 0 };
+    typeNow[k].n++; typeNow[k].sum += sofar; typeNow[k].plan += b.prob;
+    if (state !== 'open') typeNow[k].covered++;
+  });
+
+  // Aircraft: parked at base, or out on a sortie (outbound → orbit → return).
+  let airborne = 0, flown = 0;
+  pb.aircraft.forEach((a, i) => {
+    const j = lastAtOrBefore(a.sorties, t, s => s.start);
+    flown += j + 1;
+    let x = a.home[0], y = a.home[1], ang = -90, color = '#9a9a9a';
+    if (j >= 0 && t < a.sorties[j].start + tauP) {
+      const { start, b } = a.sorties[j];
+      const f = (t - start) / tauP, leg = 0.2, R = 40;
+      color = typeColor(b.type);
+      airborne++;
+      const orbitStart = [b.x + R, b.y];
+      if (f < leg) {
+        const u = f / leg;
+        x = a.home[0] + (orbitStart[0] - a.home[0]) * u; y = a.home[1] + (orbitStart[1] - a.home[1]) * u;
+        ang = (Math.atan2(orbitStart[1] - a.home[1], orbitStart[0] - a.home[0]) * 180) / Math.PI;
+      } else if (f > 1 - leg) {
+        const u = (f - (1 - leg)) / leg;
+        x = orbitStart[0] + (a.home[0] - orbitStart[0]) * u; y = orbitStart[1] + (a.home[1] - orbitStart[1]) * u;
+        ang = (Math.atan2(a.home[1] - orbitStart[1], a.home[0] - orbitStart[0]) * 180) / Math.PI;
+      } else {
+        const th = ((f - leg) / (1 - 2 * leg)) * 2 * Math.PI * 2;
+        x = b.x + R * Math.cos(th); y = b.y + R * Math.sin(th);
+        ang = (th * 180) / Math.PI + 90;
+      }
+    }
+    document.getElementById(`pbAc${i}`).setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+    const shape = document.getElementById(`pbAcShape${i}`);
+    shape.setAttribute('transform', `rotate(${ang.toFixed(1)}) scale(1.3)`);
+    shape.setAttribute('fill', color);
+  });
+
+  const rows = Object.keys(typeNow).map(k => {
+    const s = typeNow[k];
+    return `<tr><td><span style="color:${typeColor(+k)};font-weight:700">Type ${+k + 1}</span></td>
+      <td>${s.covered} / ${s.n}</td>
+      <td>${fmt(Math.min(1, pb.s1.P[k]) * 100, 1)}%</td>
+      <td>${fmt((s.plan / s.n) * 100, 1)}%</td>
+      <td>${t > 0 ? fmt((s.sum / s.n) * 100, 1) + '%' : '—'}</td></tr>`;
+  }).join('');
+  document.getElementById('pbStats').innerHTML = `
+    <div class="kv-grid">
+      <div><b>Aircraft airborne now</b>${airborne} of ${p.N}</div>
+      <div><b>Sorties started so far</b>${flown} of ${pb.totalSorties - pb.unassigned} assigned</div>
+      <div><b>Unassigned sorties in this plan</b>${pb.unassigned}</div>
+    </div>
+    <table><thead><tr><th>Barrier type</th><th>Barriers protected right now</th><th>P<sub>k</sub>* defended probability (Stage 1, all plans mixed)</th><th>Planned coverage (this plan)</th><th>Coverage achieved so far</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+/* ============================================================
    Wiring
    ============================================================ */
 
@@ -708,8 +996,10 @@ function runAll() {
 
   renderDerived(p, d);
   renderStage1(p, s1);
+  renderAllocationVisual(p, d, s1);
   renderStage2(p, s2);
   renderStage3(p, d, s3);
+  setupPlayback(p, d, s3, s1);
   renderFleetSize(p, fs);
   renderBaselines(p, s1, bl);
 }

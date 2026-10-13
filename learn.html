@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learn the Patrol Paper — Section by Section</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <link rel="stylesheet" href="learn.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <a class="btn ghost small" href="index.html">&larr; Planner</a>
+    <div class="brand">Learn the paper <small>Stackelberg Security Game for Aircraft Patrol Planning</small></div>
+    <div class="spacer"></div>
+    <div class="progress-wrap" title="A section is marked done when you answer its check-yourself question correctly">
+      <div class="progress">
+        <div id="progressFill"></div>
+      </div>
+      <span id="progressText">0 / 12</span>
+    </div>
+    <button class="btn ghost small" id="glossaryBtn">Notation</button>
+  </header>
+
+  <div class="layout">
+    <nav class="toc collapsed" id="toc">
+      <button class="btn ghost small toc-toggle" id="tocToggle">Sections ▾</button>
+      <h4>The paper, section by section</h4>
+      <ol id="tocList"></ol>
+    </nav>
+
+    <main id="main">
+
+      <!-- =========================================================== §1 -->
+      <article class="lesson" id="s1" data-title="Introduction" data-pages="p. 3" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 1</div>
+          <h1>Introduction: the problem and the three-stage pipeline</h1>
+          <div class="pages">Paper p. 3</div>
+        </div>
+
+        <p class="lead">A <b>defender</b> has a fleet of aircraft and must patrol a set of <b>barriers</b>
+          (borders, choke points, sensitive areas). An <b>intelligent attacker</b> wants to cross or strike
+          one of them. The paper asks: <em>how should the defender schedule patrols so that even the
+            smartest attacker gets as little as possible?</em></p>
+
+        <div class="bigidea"><b>The big idea</b>
+          The attacker can learn your <em>policy</em> (the long-run odds of each patrol plan) by watching for
+          a while, but cannot see <em>today's</em> plan. So the defender should commit to a randomized policy
+          that leaves no barrier noticeably weaker than the others. That is a <b>Stackelberg security
+            game</b>: the defender leads (commits first), the attacker follows (best-responds).</div>
+
+        <h2>Three assumptions about the attacker</h2>
+        <ol>
+          <li>The attacker is <b>intelligent</b>: they pick whatever is best for them.</li>
+          <li>The attacker <b>observes the policy</b> (the probabilities) but <b>not today's specific
+              schedule</b>.</li>
+          <li>The attacker <b>strikes the most vulnerable target</b>, i.e. the one worst for the defender.</li>
+        </ol>
+
+        <h2>The pipeline</h2>
+        <p>Everything in the paper serves one of these boxes. Click one to see what it takes in and what it
+          produces.</p>
+        <div class="widget">
+          <div class="widget-title">The solution pipeline</div>
+          <div class="pipeline" id="pipeline"></div>
+          <div class="pipe-detail note" id="pipeDetail"></div>
+        </div>
+
+        <p>The order matters. Stage 1 works with smooth, continuous numbers (hours can be 482.06), which makes
+          it easy to solve exactly. Real patrols come in whole sorties, so Stage 2 turns the smooth answer
+          into a lottery over whole-number plans. Stage 3 then makes each plan flyable: actual clock times and
+          tail numbers.</p>
+
+        <div class="quiz" data-quiz="s1"></div>
+      </article>
+
+      <!-- =========================================================== §2 -->
+      <article class="lesson" id="s2" data-title="Problem Parameters" data-pages="p. 3" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 2</div>
+          <h1>Problem parameters</h1>
+          <div class="pages">Paper p. 3, Table 1 and Remark 1</div>
+        </div>
+
+        <p class="lead">The model has a handful of <b>inputs</b> you choose and a chain of <b>derived
+            quantities</b> that follow from them. Getting comfortable with this chain makes every later formula
+          easy to read.</p>
+
+        <div class="bigidea"><b>The big idea</b>
+          A sortie burns only τ<sub>p</sub> flying hours but protects for W = τ<sub>p</sub> + τ<sub>s</sub>
+          hours, because a barrier that was just checked stays safe for a while. So each flying hour is
+          “worth” μ = W/τ<sub>p</sub> protection hours. That multiplier μ shows up everywhere.</div>
+
+        <div class="widget">
+          <div class="widget-title">The running example (edit me)</div>
+          <p class="widget-sub">Defaults are the paper's own 22-aircraft instance from Section 12 (μ = 3,
+            B<sub>eff</sub> = 1209 h). Every later section uses these numbers, so change them here and watch
+            the rest of the course recompute.</p>
+          <div class="controls" id="paramControls"></div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="barrierEditor"></table>
+          </div>
+          <div class="btn-row"><button class="btn ghost small" id="resetParams">Reset to the paper's values</button>
+          </div>
+          <h3>What follows from those inputs</h3>
+          <ol class="steps" id="deriveChain"></ol>
+        </div>
+
+        <h2>Remark 1: why B<sub>eff</sub> and not B?</h2>
+        <p>The fleet can fly B = N·F hours, but sorties come in chunks of τ<sub>p</sub>. The largest whole
+          number of sorties is N<sub>srt</sub> = ⌊B/τ<sub>p</sub>⌋, which uses B<sub>eff</sub> =
+          N<sub>srt</sub>·τ<sub>p</sub> hours. The leftover B − B<sub>eff</sub> is less than one sortie. Stage 1
+          is solved with B<sub>eff</sub> so that Stage 2 can match it <em>exactly</em> with whole sorties (zero
+          residual gap). With your numbers, the leftover is <b id="remark1Gap"></b>.</p>
+
+        <div class="quiz" data-quiz="s2"></div>
+      </article>
+
+      <!-- =========================================================== §3 -->
+      <article class="lesson" id="s3" data-title="Coverage Model" data-pages="p. 4" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 3</div>
+          <h1>The coverage model</h1>
+          <div class="pages">Paper p. 4, Definition 1 and Remark 2</div>
+        </div>
+
+        <p class="lead">Let h<sub>k</sub> be the total flying hours per period T spent on <em>all</em>
+          barriers of type k together. How often is one particular barrier of that type protected?</p>
+
+        <div class="math-block">\[ P_k \;=\; \frac{\mu\,h_k}{n_k\,T} \qquad\text{(Eq. 1)} \]</div>
+
+        <p>Read it as a ratio of hours: the numerator μh<sub>k</sub> is the protection-hours your flying
+          creates; the denominator n<sub>k</sub>T is the barrier-hours that exist (n<sub>k</sub> barriers, each
+          needing T hours). P<sub>k</sub> is the fraction of time a given barrier is covered, which is
+          also the probability that a randomly-timed attack finds it covered.</p>
+
+        <div class="bigidea"><b>The big idea</b>
+          Coverage is linear in hours: double the hours, double the coverage (until it hits 100%). Full
+          coverage (P<sub>k</sub> = 1) needs h<sub>k</sub> = n<sub>k</sub>T/μ hours (Remark 2). The formula
+          quietly assumes the sorties are <b>spread evenly in time</b>; Stage 3 is what makes that true.</div>
+
+        <div class="widget">
+          <div class="widget-title">Spend flying hours on one barrier type</div>
+          <p class="widget-sub">Each block is one sortie: the dark part is the flight (τ<sub>p</sub>), the light
+            part is the safe period (τ<sub>s</sub>). The strips show the first week of the period for each
+            barrier of the chosen type.</p>
+          <div class="controls">
+            <div class="ctl" style="flex:0 0 auto">
+              <label>Barrier type</label>
+              <div class="seg" id="covType"></div>
+            </div>
+            <div class="ctl">
+              <label for="covH">Flying hours on this type, h<sub>k</sub> <output id="covHOut"></output></label>
+              <input type="range" id="covH" min="0" step="1">
+            </div>
+            <div class="ctl" style="flex:0 0 auto">
+              <label>Sortie timing</label>
+              <div class="seg" id="covMode"><button data-v="even" class="on">Spread evenly</button><button
+                  data-v="cluster">Bunched together</button></div>
+            </div>
+          </div>
+          <div class="chart" id="covChart"></div>
+          <div class="stats" id="covStats"></div>
+          <p class="widget-sub" id="covNote"></p>
+        </div>
+
+        <div class="quiz" data-quiz="s3"></div>
+      </article>
+
+      <!-- =========================================================== §4 -->
+      <article class="lesson" id="s4" data-title="The Stackelberg Game" data-pages="pp. 4–5" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 4</div>
+          <h1>The Stackelberg security game</h1>
+          <div class="pages">Paper pp. 4–5: players, payoffs, equilibrium, Remark 3</div>
+        </div>
+
+        <h2>4.1 Players and actions</h2>
+        <ul>
+          <li>A <b>pure strategy</b> is one whole-number sortie plan (m<sub>1</sub>, …, m<sub>K</sub>) with
+            Σ m<sub>k</sub> = N<sub>srt</sub>. It spends a<sub>k</sub> = m<sub>k</sub>τ<sub>p</sub> hours on
+            type k.</li>
+          <li>A <b>mixed strategy</b> s is a probability distribution over pure strategies. Its expected hours
+            are h<sub>k</sub> = Σ<sub>j</sub> A<sub>jk</sub> s<sub>j</sub>.</li>
+          <li>The <b>defender</b> commits to s. The <b>attacker</b> sees s and picks one barrier type to hit.</li>
+        </ul>
+
+        <h2>4.2 Payoffs</h2>
+        <p>If the attacker hits a type-k barrier, the defender gains v<sub>k</sub> if it was covered
+          (probability P<sub>k</sub>) and loses v<sub>k</sub> if it wasn't. It is zero-sum: the attacker gets
+          the negative.</p>
+        <div class="math-block">\[ U_d(k) = v_k P_k - v_k(1-P_k) = v_k(2P_k - 1) = v_k\!\left(\frac{2\mu h_k}{n_k T} - 1\right)
+          \qquad\text{(Eq. 2)} \]</div>
+
+        <div class="widget">
+          <div class="widget-title">How payoff responds to coverage</div>
+          <p class="widget-sub">Every line crosses zero at P = 50%: below half coverage the defender expects
+            to lose. Higher-value types have steeper lines, so they swing harder both ways.</p>
+          <div class="controls">
+            <div class="ctl"><label for="payP">Coverage P <output id="payPOut"></output></label><input
+                type="range" id="payP" min="0" max="1" step="0.01" value="0.62"></div>
+          </div>
+          <div class="chart" id="payChart"></div>
+          <div class="legend" id="payLegend"></div>
+        </div>
+
+        <h2>4.3 The equilibrium: max over you, min over them</h2>
+        <div class="math-block">\[ \max_{h \ge 0,\ \sum_k h_k = B_\text{eff}} \;\; \min_{k} \; U_d(k; h) \qquad\text{(Eq. 3)}
+          \]</div>
+        <p>The inner <b>min</b> is the attacker picking your weakest type. The outer <b>max</b> is you
+          choosing the allocation whose weakest point is as strong as possible. Try it yourself:</p>
+
+        <div class="widget">
+          <div class="widget-title">You are the defender</div>
+          <p class="widget-sub">Split the budget B<sub>eff</sub> = <span class="v-Beff"></span> h across the
+            three types (Low gets whatever is left). The attacker always hits the type with the lowest bar. Can
+            you match the optimum?</p>
+          <div class="controls">
+            <div class="ctl"><label for="gH"><span><span class="swatch" style="background:var(--c0)"></span>h on
+                  High</span><output id="gHOut"></output></label><input type="range" id="gH" min="0" step="1"></div>
+            <div class="ctl"><label for="gM"><span><span class="swatch" style="background:var(--c1)"></span>h on
+                  Medium</span><output id="gMOut"></output></label><input type="range" id="gM" min="0" step="1">
+            </div>
+            <div class="ctl" style="flex:0 0 140px"><label><span><span class="swatch"
+                    style="background:var(--c2)"></span>h on Low</span><output id="gLOut"></output></label>
+              <small class="widget-sub" style="margin:0">= B<sub>eff</sub> − the others</small>
+            </div>
+          </div>
+          <div id="gameBars"></div>
+          <div class="stats" id="gameStats"></div>
+          <div class="btn-row">
+            <button class="btn ghost small" id="gEqual">Split equally</button>
+            <button class="btn ghost small" id="gShift">Remark 3 step: move hours from strongest to weakest</button>
+            <button class="btn small" id="gOpt">Show the Stackelberg optimum</button>
+          </div>
+          <p class="widget-sub" id="gameMsg"></p>
+        </div>
+
+        <h2>Remark 3: why the attacker ends up indifferent</h2>
+        <p>Suppose at your chosen allocation type k′ gives you a higher payoff than type k″. The attacker hits
+          k″. But then the hours on k′ are partly wasted: move a few of them to k″, and k″ gets stronger while
+          the attacker still has nothing better. Your worst case went up, so you weren't optimal. Repeat
+          until no type is weaker than another. At the optimum, every type that gets any hours (the
+          <b>active</b> set) gives you <b>exactly the same payoff</b> z*, the <b>game value</b>. The “Remark 3
+          step” button above does exactly this move; press it a few times.</p>
+
+        <div class="quiz" data-quiz="s4"></div>
+      </article>
+
+      <!-- =========================================================== §5 -->
+      <article class="lesson" id="s5" data-title="Stage 1: LP & Closed Form" data-pages="pp. 5–6" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 5 · Stage 1</div>
+          <h1>Stage 1: the linear programme and its closed-form answer</h1>
+          <div class="pages">Paper pp. 5–6: LP (4), Theorem 1, Remark 4, Proposition 2, Remark 5</div>
+        </div>
+
+        <h2>5.1 Turning max–min into an LP</h2>
+        <p>A “max of a min” isn't linear, but a standard trick makes it so: introduce one number z that must
+          sit <em>below</em> every type's payoff, then push z as high as possible.</p>
+        <div class="math-block">\[ \begin{aligned} \max_{h,\,z}\quad & z \\ \text{s.t.}\quad & z \le v_k\!\left(\tfrac{2\mu h_k}{n_k
+          T}-1\right) \;\;\forall k && \text{(C1)}\\ & \textstyle\sum_k h_k = B_\text{eff} && \text{(C2)}\\ & h_k \ge 0 && \text{(C3)}
+          \end{aligned} \]</div>
+        <p>At the optimum z equals the smallest payoff, which is exactly the attacker's choice. The LP has K+1
+          variables and is always feasible and bounded.</p>
+
+        <h2>5.2 Theorem 1: you don't even need an LP solver</h2>
+        <p>By Remark 3 all (C1) constraints bind at the optimum: each payoff equals z*. Solve each for
+          h<sub>k</sub>, add them up, and set the sum equal to the budget:</p>
+        <div class="math-block">\[ d_k = \frac{n_k T}{2\mu v_k}, \qquad z^* = \frac{B_\text{eff} - \dfrac{T N_b}{2\mu}}{\sum_k d_k},
+          \qquad h_k^* = d_k\,(z^* + v_k) \]</div>
+        <p>d<sub>k</sub> is a <b>sensitivity</b>: how many flying hours it costs to raise type k's payoff by
+          one unit. Many barriers or low value means large d<sub>k</sub> (expensive to move).</p>
+
+        <div class="widget">
+          <div class="widget-title">Compute Stage 1 step by step</div>
+          <p class="widget-sub">Uses the running example from Section 2. Try predicting each number before you
+            reveal it.</p>
+          <ol class="steps" id="s1Steps"></ol>
+          <div class="btn-row"><button class="btn small" id="s1Next">Reveal next step</button><button
+              class="btn ghost small" id="s1All">Show all</button><button class="btn ghost small"
+              id="s1Reset">Start over</button></div>
+        </div>
+
+        <p><b>Remark 4 (sign of z*).</b> The numerator B<sub>eff</sub> − TN<sub>b</sub>/(2μ) compares your
+          budget with the hours needed to hold every barrier at exactly 50% coverage. More than that and the
+          defender expects a net gain (z* &gt; 0); less, and even optimal patrolling loses on average.</p>
+
+        <h2>5.3 Active and inactive types</h2>
+        <p>h*<sub>k</sub> = d<sub>k</sub>(z* + v<sub>k</sub>) is negative if z* &lt; −v<sub>k</sub>. Negative
+          hours are impossible, so such a type gets <b>zero</b> hours and is dropped. The intuition: when you
+          are already losing |z*| ≥ v<sub>k</sub> everywhere else, leaving type k completely open (a loss of
+          exactly v<sub>k</sub>) is no worse. The paper lists three cases:</p>
+        <ul>
+          <li><b>Case 1, z* &gt; 0:</b> every type is active.</li>
+          <li><b>Case 2, −v<sub>k</sub> &lt; z* ≤ 0:</b> you are losing, but type k is still worth defending.</li>
+          <li><b>Case 3, z* ≤ −v<sub>k</sub>:</b> type k is indefensible: drop it and re-solve over the rest
+            (Remark 5).</li>
+        </ul>
+
+        <div class="widget">
+          <div class="widget-title">The water-level picture</div>
+          <p class="widget-sub">Pick a target payoff level z. To lift type k up to z you need d<sub>k</sub>·(z +
+            v<sub>k</sub>) hours, or zero if z ≤ −v<sub>k</sub>. The rising line is the total hours needed;
+            z* is where it meets your budget. Each kink is a type switching on. Drag the fleet size and
+            watch types become active.</p>
+          <div class="controls">
+            <div class="ctl"><label for="wlN">Fleet size N <output id="wlNOut"></output></label><input type="range"
+                id="wlN" min="1" step="1"></div>
+          </div>
+          <div class="chart" id="wlChart"></div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="wlTable"></table>
+          </div>
+          <p class="widget-sub" id="wlLog"></p>
+        </div>
+
+        <div class="quiz" data-quiz="s5"></div>
+      </article>
+
+      <!-- =========================================================== §6 -->
+      <article class="lesson" id="s6" data-title="Stage 2: Mixed Strategy" data-pages="pp. 7–9" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 6 · Stage 2</div>
+          <h1>Stage 2: from smooth hours to a lottery over whole-sortie plans</h1>
+          <div class="pages">Paper pp. 7–9: feasibility LP (9), column generation, Section 6.4, Proposition 3
+          </div>
+        </div>
+
+        <h2>6.1 The integer problem</h2>
+        <p>Stage 1 says “spend 482.06 hours on High.” That is m*<sub>H</sub> = h*/τ<sub>p</sub> = 160.69
+          sorties, and you cannot fly 0.69 of a sortie. No single whole-number plan hits h* exactly. But a
+          <b>mixture</b> can: fly 161 some months and 160 in others, in the right proportions, and the
+          <em>average</em> is exactly 160.69.</p>
+
+        <h2>6.2 The feasibility LP</h2>
+        <p>Collect candidate plans as rows of a matrix A (A<sub>jk</sub> = hours plan j puts on type k). We
+          need probabilities s with</p>
+        <div class="math-block">\[ A^\top s = h^*, \qquad \mathbf 1^\top s = 1, \qquad s \ge 0. \qquad\text{(Eq. 8)} \]</div>
+        <p>To give a solver something to minimise, add a slack ε<sub>k</sub> ≥ 0 per type (the coverage
+          shortfall) and minimise Σε<sub>k</sub>. An optimum of 0 means h* is reproduced exactly.</p>
+        <div class="math-block">\[ \min_{s,\varepsilon}\ \mathbf 1^\top\varepsilon \quad\text{s.t.}\quad A^\top s + \varepsilon = h^*,\;\;
+          \mathbf 1^\top s = 1,\;\; s,\varepsilon \ge 0 \qquad\text{(Eq. 9)} \]</div>
+
+        <div class="widget">
+          <div class="widget-title">Build the floor/ceiling candidates (Section 6.4)</div>
+          <p class="widget-sub">Round each m*<sub>k</sub> down. Because Σ m*<sub>k</sub> = N<sub>srt</sub>
+            exactly, the fractional parts add up to a whole number r, so exactly r types must be rounded
+            up instead. Every way of choosing those r types is a candidate.</p>
+          <div class="tbl-wrap">
+            <table class="tbl" id="mStarTable"></table>
+          </div>
+          <div id="candList"></div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-title">Draw this month's plan</div>
+          <p class="widget-sub">This is the operational meaning of the mixed strategy: at the start of each
+            period, spin a weighted wheel and fly the plan it lands on. The attacker knows the wheel, not the
+            outcome.</p>
+          <div class="wheel-wrap">
+            <div class="wheel">
+              <div class="pointer"></div><svg id="wheelSvg" viewBox="-105 -105 210 210"></svg>
+            </div>
+            <div style="flex:1;min-width:240px">
+              <div class="drawn" id="drawnPlan">Spin to pick a plan.</div>
+              <div class="btn-row"><button class="btn" id="spinBtn">Spin for this month</button><button
+                  class="btn ghost" id="sim100">Simulate 120 months</button></div>
+              <div class="tbl-wrap">
+                <table class="tbl" id="simTable"></table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h2>Proposition 3: you never need more than K+1 plans</h2>
+        <p>The LP (9) has K+1 equality constraints (K coverage rows plus the “probabilities sum to 1” row). A
+          simplex solver returns a <b>basic</b> solution, which has at most as many non-zero variables as
+          equality constraints. So at most <b>K+1 plans</b> get positive probability, no matter how many
+          candidates you offer. With K = 3 that is at most 4; above, you see <b id="supportCount"></b>.</p>
+
+        <h2>6.3 Column generation (the general method)</h2>
+        <p>In general the number of whole-number plans is astronomically large, so the paper never lists them
+          all. Column generation starts with a few plans and adds one improving plan per round.</p>
+        <details class="explain">
+          <summary>Duality background: reduced costs and what λ<sub>k</sub> means</summary>
+          <div>
+            <p>Every LP min c<sup>⊤</sup>x s.t. Ax = b, x ≥ 0 has a dual with one variable per constraint. The
+              <b>reduced cost</b> of a column is c̄<sub>j</sub> = c<sub>j</sub> − a<sub>j</sub><sup>⊤</sup>y.
+              A column not yet in the LP can lower the objective only if c̄<sub>j</sub> &lt; 0.</p>
+            <p>For LP (9), give each coverage row a dual λ<sub>k</sub> and the probability row a dual ν. A plan
+              costs 0 in the objective, so its reduced cost is −(a<sub>j</sub><sup>⊤</sup>λ + ν). A new plan
+              helps if a<sub>j</sub><sup>⊤</sup>λ + ν &gt; 0.</p>
+            <p><b>λ<sub>k</sub> is an “under-coverage signal”</b>: how much the total shortfall drops per extra
+              hour on type k. A large λ<sub>k</sub> means type k most urgently needs hours.</p>
+          </div>
+        </details>
+        <details class="explain">
+          <summary>The pricing problem and the loop</summary>
+          <div>
+            <p>Find the plan with the largest τ<sub>p</sub> Σ λ<sub>k</sub>m<sub>k</sub> (Eq. 11). Every sortie
+              is worth τ<sub>p</sub>λ<sub>k</sub> on type k, so the answer is simply: put all sorties on the
+              type with the largest λ<sub>k</sub>. The loop:</p>
+            <ol>
+              <li>Start with K canonical plans (plan k = all N<sub>srt</sub> sorties on type k).</li>
+              <li>Solve LP (9) over the current plans and get λ, ν.</li>
+              <li>If the gap Σε = 0, stop.</li>
+              <li>Otherwise solve the pricing problem, add that plan, and repeat.</li>
+            </ol>
+            <p>It needs at most K+1 rounds. For K ≤ 4 the paper skips the loop and directly enumerates the
+              floor/ceiling candidates, as in the widget above.</p>
+          </div>
+        </details>
+        <div class="note look"><span class="tag">Look closer · not in the paper</span><br>
+          The K canonical plans <em>already</em> reproduce h* exactly: mix them with probabilities
+          s<sub>k</sub> = h*<sub>k</sub>/B<sub>eff</sub> (<span id="canonMix"></span>). The gap is zero on round
+          one. So zero gap alone does not single out a good mixture: any mix with the right average passes.
+          The canonical mix is terrible in practice, because each month it leaves two of the three types
+          completely unpatrolled. Section 11 makes this precise and proves the floor/ceiling mix is the right
+          choice.</div>
+
+        <div class="quiz" data-quiz="s6"></div>
+      </article>
+
+      <!-- =========================================================== §7 -->
+      <article class="lesson" id="s7" data-title="Stage 3: Scheduling" data-pages="pp. 9–10" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 7 · Stage 3</div>
+          <h1>Stage 3: turning a plan into a timetable</h1>
+          <div class="pages">Paper pp. 9–10: Eqs. 12–15, Remarks 6–9, aircraft assignment</div>
+        </div>
+
+        <h2>7.1 Spread the sorties over individual barriers</h2>
+        <p>A plan says “m<sub>k</sub> sorties on type k.” Split them as evenly as possible over the
+          n<sub>k</sub> barriers: each gets ⌊m<sub>k</sub>/n<sub>k</sub>⌋, and the first (m<sub>k</sub> mod
+          n<sub>k</sub>) get one extra. A barrier with q<sub>i</sub> sorties is visited every
+          Δ<sub>i</sub> = T/q<sub>i</sub> hours, and its coverage is p<sub>i</sub> = W/Δ<sub>i</sub> =
+          Wq<sub>i</sub>/T (Eqs. 12–13).</p>
+
+        <div class="widget">
+          <div class="widget-title">One plan, ten barriers</div>
+          <div class="controls">
+            <div class="ctl" style="flex:0 0 auto"><label>Plan from Stage 2</label>
+              <div class="seg" id="planPick"></div>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="barrierTable"></table>
+          </div>
+        </div>
+
+        <h2>7.2 Randomised phases</h2>
+        <p>If barrier i were always patrolled at the same clock times, an attacker could watch for two days,
+          learn the clock, and strike just after a patrol ends. So each barrier draws its own random start
+          offset:</p>
+        <div class="math-block">\[ \varphi_i \sim \text{Uniform}[0,\;\Delta_i - W), \qquad t_{i,j} = \varphi_i + j\,\Delta_i
+          \quad (j = 0,1,2,\dots) \qquad\text{(Eqs. 14–15)} \]</div>
+        <ul>
+          <li><b>Remark 6:</b> the upper limit Δ<sub>i</sub> − W keeps each window inside its own cycle, so
+            exactly W of every Δ<sub>i</sub> hours are covered.</li>
+          <li><b>Remark 7:</b> coverage p<sub>i</sub> = W/Δ<sub>i</sub> doesn't depend on φ<sub>i</sub>, so
+            randomising costs nothing.</li>
+          <li><b>Remark 8:</b> independent draws per barrier beat one shared draw per type: seeing one barrier
+            reveals nothing about the others.</li>
+          <li><b>Remark 9:</b> two layers of randomness. Stage 2 hides <em>which plan</em> is active; Stage 3
+            hides <em>when</em> each sortie flies.</li>
+        </ul>
+
+        <div class="widget">
+          <div class="widget-title">Redraw the phases</div>
+          <p class="widget-sub">First 72 hours of the chosen plan. Redraw and the blocks move, but each
+            barrier's coverage number on the right never changes (Remark 7).</p>
+          <div class="btn-row"><button class="btn small" id="redraw">Redraw phases</button></div>
+          <div class="chart" id="phaseChart"></div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-title">Look closer: when should a clever attacker strike?</div>
+          <p class="widget-sub">Coverage p<sub>i</sub> is an <em>average over time</em>. An attacker who knows
+            the policy might instead pick the <em>moment</em>. This chart shows the probability that barrier 1
+            is covered at each point of its cycle (Δ = <span id="lcDelta"></span> h, W = <span
+              id="lcW"></span> h) under three phase rules.</p>
+          <div class="controls">
+            <div class="ctl"><label for="atkT">Attack time within the cycle <output id="atkTOut"></output></label><input
+                type="range" id="atkT" min="0" step="0.05" value="0"></div>
+          </div>
+          <div class="chart" id="cycleChart"></div>
+          <div class="legend" id="cycleLegend"></div>
+          <div class="stats" id="cycleStats"></div>
+          <div class="btn-row"><button class="btn ghost small" id="simAtk">Simulate 5,000 attacks at this time</button>
+          </div>
+          <div class="note look"><span class="tag">Look closer · worth discussing</span><br>
+            With φ ∼ U[0, Δ−W), the instant at the very start of each cycle (and the times just after it)
+            is <b>never covered</b>: window j starts at φ ≥ 0 and window j−1 ended at φ − Δ + W &lt; 0. The
+            average is still W/Δ, so Remark 7 holds for an attacker who strikes at a random time, but an
+            attacker who knows the cycle boundaries and times the attack beats it. Drawing φ ∼ U[0, Δ) and
+            letting the last window wrap around to the next cycle (as the paper's own toy timetable does at
+            midnight) makes coverage exactly W/Δ at <em>every</em> moment. Slide the attack time to 0 to see
+            the difference.</div>
+        </div>
+
+        <h2>7.3 Aircraft assignment</h2>
+        <p>Collect all sorties, sort them by start time, and hand each to the next aircraft in round-robin
+          order that is (a) free: its previous sortie started at least G = τ<sub>p</sub> + τ<sub>r</sub>
+          hours ago, and (b) within budget: it has flown at most F − τ<sub>p</sub> hours so far.</p>
+
+        <div class="widget">
+          <div class="widget-title">Assign the toy example's sorties by hand</div>
+          <p class="widget-sub">The paper's toy problem (Section 9): two aircraft, τ<sub>p</sub> = 2 h, F = 6
+            h. Step through the greedy rule and compare with the paper's Tables 3 and 4. Then raise the
+            turnaround τ<sub>r</sub> and watch it break.</p>
+          <div class="controls">
+            <div class="ctl" style="flex:0 0 auto"><label>Plan</label>
+              <div class="seg" id="toyPlan"><button data-v="A" class="on">A: (3H, 3M)</button><button data-v="B">B:
+                  (2H, 4M)</button></div>
+            </div>
+            <div class="ctl"><label for="toyTr">Turnaround τ<sub>r</sub> <output id="toyTrOut"></output></label><input
+                type="range" id="toyTr" min="0" max="8" step="1" value="4"></div>
+          </div>
+          <div class="btn-row"><button class="btn small" id="asgStep">Assign next sortie</button><button
+              class="btn ghost small" id="asgAll">Assign all</button><button class="btn ghost small"
+              id="asgReset">Reset</button></div>
+          <div class="chart" id="ganttChart"></div>
+          <div class="log" id="asgLog"></div>
+        </div>
+
+        <div class="quiz" data-quiz="s7"></div>
+      </article>
+
+      <!-- =========================================================== §8 -->
+      <article class="lesson" id="s8" data-title="Minimum Fleet Size" data-pages="pp. 10–11" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 8</div>
+          <h1>Minimum fleet size</h1>
+          <div class="pages">Paper pp. 10–11: Definition 4, Eqs. 16–18, Remark 10</div>
+        </div>
+
+        <p class="lead">Turn the question around: to guarantee every barrier is covered at least a fraction
+          θ of the time, how many aircraft do you need?</p>
+        <p>P<sub>k</sub> ≥ θ needs h<sub>k</sub> ≥ θn<sub>k</sub>T/μ. Add over all types, require the total to
+          fit in the budget N·F, and round up:</p>
+        <div class="math-block">\[ N_\text{min}(\theta) = \left\lceil \frac{\theta\,T\,N_b}{\mu F} \right\rceil \qquad\text{(Eq. 16)}
+          \]</div>
+
+        <div class="bigidea"><b>Two thresholds that matter</b>
+          θ = ½ is the <b>zero expected loss</b> fleet (z* ≥ 0, Eq. 17): every barrier at least a coin-flip
+          covered. θ = 1 is <b>guaranteed full coverage</b> (Eq. 18): every barrier protected all the time.</div>
+
+        <div class="widget">
+          <div class="widget-title">How many aircraft for θ coverage?</div>
+          <div class="controls">
+            <div class="ctl"><label for="theta">Coverage target θ <output id="thetaOut"></output></label><input
+                type="range" id="theta" min="0" max="1" step="0.01" value="0.5"></div>
+          </div>
+          <div class="stats" id="fleetStats"></div>
+          <div class="chart" id="fleetChart"></div>
+        </div>
+
+        <h2>Remark 10: the same answer by counting</h2>
+        <ol class="steps" id="capacitySteps"></ol>
+
+        <div class="quiz" data-quiz="s8"></div>
+      </article>
+
+      <!-- =========================================================== §9 -->
+      <article class="lesson" id="s9" data-title="Worked Toy Example" data-pages="pp. 11–13" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 9</div>
+          <h1>Worked example: the toy problem, done by you</h1>
+          <div class="pages">Paper pp. 11–13, Tables 2–4</div>
+        </div>
+
+        <p class="lead">Small enough to do with pen and paper, and every answer is an exact fraction. Work
+          through it yourself: type your answer, check it, and use the hint if you get stuck. Fractions like
+          <code>2/3</code> are fine.</p>
+
+        <div class="widget">
+          <div class="widget-title">Toy parameters (Table 2)</div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <tr>
+                <th>N</th>
+                <th>Types</th>
+                <th>n<sub>H</sub>, n<sub>M</sub></th>
+                <th>v<sub>H</sub>, v<sub>M</sub></th>
+                <th>T</th>
+                <th>τ<sub>p</sub></th>
+                <th>τ<sub>s</sub></th>
+                <th>W, μ</th>
+                <th>τ<sub>r</sub>, G</th>
+                <th>F</th>
+                <th>B<sub>eff</sub>, N<sub>srt</sub></th>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>High, Medium</td>
+                <td>1, 1</td>
+                <td>6, 2</td>
+                <td>24 h</td>
+                <td>2 h</td>
+                <td>4 h</td>
+                <td>6 h, 3</td>
+                <td>4 h, 6 h</td>
+                <td>6 h</td>
+                <td>12 h, 6</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-title">Your turn</div>
+          <div id="exercise"></div>
+          <div class="btn-row"><button class="btn ghost small" id="exReveal">Reveal all answers</button></div>
+        </div>
+
+        <h2>9.5 Why mix at all? Find the best coin</h2>
+        <p>Plan A = (3H, 3M), plan B = (2H, 4M). Fly A with probability s<sub>A</sub>. The expected payoff of
+          an attack on each type is linear in s<sub>A</sub>; the attacker takes the lower line. Slide to find
+          the best coin.</p>
+        <div class="widget">
+          <div class="widget-title">Expected payoff vs. the probability of plan A</div>
+          <div class="controls">
+            <div class="ctl"><label for="sA">s<sub>A</sub> <output id="sAOut"></output></label><input type="range"
+                id="sA" min="0" max="1" step="0.01" value="0.2"></div>
+          </div>
+          <div class="chart" id="sAChart"></div>
+          <div class="legend" id="sALegend"></div>
+          <div class="stats" id="sAStats"></div>
+        </div>
+        <p>A fair coin gives 1.5, strictly better than A alone (min(3, 1) = 1) or B alone (min(0, 2) = 0).
+          Mixing <em>creates</em> value: it is the only way to reach the fractional optimum h* = (5, 7).</p>
+
+        <div class="quiz" data-quiz="s9"></div>
+      </article>
+
+      <!-- =========================================================== §10 -->
+      <article class="lesson" id="s10" data-title="The Full Algorithm" data-pages="p. 14" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 10</div>
+          <h1>The solution algorithm, end to end</h1>
+          <div class="pages">Paper p. 14, Algorithm 1</div>
+        </div>
+
+        <p class="lead">Everything so far fits in 19 lines. Run it on the running example one line at a time,
+          or click a line to jump to the section that explains it.</p>
+
+        <div class="widget">
+          <div class="widget-title">Algorithm 1: Stackelberg patrol planning</div>
+          <div class="btn-row"><button class="btn small" id="algoStep">Run next line</button><button
+              class="btn ghost small" id="algoAll">Run to end</button><button class="btn ghost small"
+              id="algoReset">Reset</button></div>
+          <div class="algo" id="algo"></div>
+          <div class="algo-out log" id="algoOut">Press “Run next line”.</div>
+        </div>
+
+        <p>The full general-K version of this algorithm, with a from-scratch simplex solver for Stage 2, is
+          what the <a href="index.html">planner page</a> runs.</p>
+
+        <div class="quiz" data-quiz="s10"></div>
+      </article>
+
+      <!-- =========================================================== §11 -->
+      <article class="lesson" id="s11" data-title="Why Floor/Ceil Is Optimal" data-pages="pp. 14–16" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 11</div>
+          <h1>Why the floor/ceiling mix is worst-case optimal</h1>
+          <div class="pages">Paper pp. 14–16: Definitions 5–6, Lemma 4, Theorem 5, Remarks 11–12</div>
+        </div>
+
+        <p class="lead">Many mixtures reproduce h* on average, and they all give the same <em>expected</em>
+          payoff z*. Wouldn't a wilder mix (sometimes 0 sorties, sometimes 6) be more unpredictable, and so
+          better? The paper proves it is not: it can only hurt.</p>
+
+        <h2>11.1 Realised utility</h2>
+        <p>In a month where plan j is flown, an attack on type k pays U<sup>(j)</sup>(k) =
+          v<sub>k</sub>(2μm<sub>jk</sub>τ<sub>p</sub>/(n<sub>k</sub>T) − 1). A patient attacker can wait for a
+          bad month, so judge a mix by its <b>worst realised payoff</b>:</p>
+        <div class="math-block">\[ W(s) = \min_{j:\,s_j>0}\ \min_k\ U_d^{(j)}(k). \]</div>
+
+        <h2>11.2 Lemma 4: you can't avoid the floor</h2>
+        <p>If m*<sub>k</sub> is fractional, any valid mix must include some plan with m<sub>jk</sub> ≤
+          ⌊m*<sub>k</sub>⌋. If every plan had at least ⌈m*<sub>k</sub>⌉, the average would be at least
+          ⌈m*<sub>k</sub>⌉ &gt; m*<sub>k</sub>. Contradiction.</p>
+
+        <h2>11.3 Theorem 5: floor/ceil hits the best possible worst case</h2>
+        <div class="math-block">\[ W^* = \min_k\, v_k\!\left(\frac{2\mu\lfloor m_k^*\rfloor\tau_p}{n_k T} - 1\right), \qquad W(s) \le W^*
+          \ \ \forall s, \qquad W(s_\text{FC}) = W^*. \]</div>
+        <p><b>Upper bound:</b> by the lemma, every mix has a month with at most the floor on each type, so
+          W(s) ≤ W*. <b>Achievability:</b> floor/ceil plans never go below the floor, so they reach W*.</p>
+
+        <div class="widget">
+          <div class="widget-title">Design your own mix (toy problem, m*<sub>H</sub> = 2.5)</div>
+          <p class="widget-sub">Choose a “low” plan and a “high” plan for High (Medium gets the other sorties out
+            of 6). The probabilities are forced by the requirement that the average be 2.5. Widen the spread and
+            watch the worst month.</p>
+          <div class="controls">
+            <div class="ctl"><label for="lowA">Low plan: High sorties <output id="lowAOut"></output></label><input
+                type="range" id="lowA" min="0" max="3" step="1" value="2"></div>
+            <div class="ctl"><label for="highB">High plan: High sorties <output id="highBOut"></output></label><input
+                type="range" id="highB" min="3" max="6" step="1" value="3"></div>
+            <div class="ctl" style="flex:0 0 auto"><label>Attacker</label>
+              <div class="seg" id="atkType"><button data-v="adaptive" class="on">Patient (waits for a bad
+                  month)</button><button data-v="committed">Committed (Remark 11)</button></div>
+            </div>
+          </div>
+          <div class="chart" id="mixChart"></div>
+          <div class="legend" id="mixLegend"></div>
+          <div class="stats" id="mixStats"></div>
+          <p class="widget-sub" id="mixMsg"></p>
+        </div>
+
+        <h2>11.4 Why diversification cannot help</h2>
+        <p>Push one plan below the floor and another must go above the ceiling to keep the average. The high
+          month is nice, but the patient attacker simply ignores it and strikes in the low month, where the
+          payoff is strictly below W*.</p>
+        <p><b>Remark 11.</b> If the attacker must commit to a target <em>before</em> seeing which plan is
+          active, every valid mix gives the same z*, and diversification neither helps nor hurts. The theorem
+          is about the patient, adaptive attacker. Toggle the attacker type above to see this.</p>
+        <p><b>Remark 12 (integrality gap).</b> W* ≤ z*; the gap is the price of whole sorties. With many
+          sorties the floors are close to m*, and W* → z*.</p>
+
+        <div class="widget">
+          <div class="widget-title">The running example: canonical vs. floor/ceil</div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="wcTable"></table>
+          </div>
+        </div>
+
+        <div class="quiz" data-quiz="s11"></div>
+      </article>
+
+      <!-- =========================================================== §12 -->
+      <article class="lesson" id="s12" data-title="Baseline Comparison" data-pages="pp. 16–18" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Section 12</div>
+          <h1>Comparison with common-sense patrol policies</h1>
+          <div class="pages">Paper pp. 16–18, Table 5</div>
+        </div>
+
+        <p class="lead">Is all this game theory worth it? The paper pits the Stackelberg answer against four
+          policies a sensible planner might try, all judged the same way: the attacker hits your weakest type.</p>
+
+        <div class="widget">
+          <div class="widget-title">Five policies, one attacker</div>
+          <p class="widget-sub">Each group shows the defender's payoff U<sub>d</sub>(k) per type; the black
+            tick is the game value (the lowest bar, where the attacker strikes). Click a policy to read
+            why it fails.</p>
+          <div class="seg" id="polPick" style="flex-wrap:wrap"></div>
+          <div class="chart" id="polChart" style="margin-top:.6rem"></div>
+          <div class="legend" id="polLegend"></div>
+          <div class="note" id="polDetail"></div>
+          <div class="tbl-wrap">
+            <table class="tbl" id="polTable"></table>
+          </div>
+          <p class="widget-sub" id="polFoot"></p>
+        </div>
+
+        <h2>Two lessons</h2>
+        <ol>
+          <li><b>Only Stackelberg equalises the payoffs</b>, so the attacker has no preferred target. Every
+            other policy leaves a weakest link.</li>
+          <li><b>The intuitive policies are the worst randomised ones.</b> Value-proportional and greedy pour hours
+            into high-value targets and starve the low-value ones below 50% coverage. Plain uniform random does
+            better than both.</li>
+        </ol>
+
+        <div class="quiz" data-quiz="s12"></div>
+      </article>
+
+      <!-- =========================================================== Summary -->
+      <article class="lesson" id="s13" data-title="Summary" data-pages="" hidden>
+        <div class="lesson-head">
+          <div class="eyebrow">Wrap-up</div>
+          <h1>What the paper teaches, in twelve lines</h1>
+        </div>
+        <ul class="takeaways" id="takeaways"></ul>
+        <div class="btn-row" style="margin-top:1.5rem"><a class="btn" href="index.html">Open the planner and run it
+            yourself →</a><a class="btn ghost" href="beyond.html">Taking this idea forward →</a><button class="btn ghost" id="resetProgress">Reset my progress</button></div>
+      </article>
+
+      <!-- =========================================================== Viva deck -->
+      <article class="lesson" id="deck" data-title="Viva revision deck" data-pages="" hidden style="max-width:960px">
+        <div class="lesson-head">
+          <div class="eyebrow">Viva preparation</div>
+          <h1>Viva revision deck</h1>
+        </div>
+        <p class="lead">Every definition, theorem, lemma, proposition, remark, equation and mathematical trick in the
+          paper, in paper order, plus the counter-questions an examiner is likely to ask. Red <b>Critical</b> points are
+          gaps or inconsistencies you should be ready to discuss.</p>
+        <div class="note"><b>How to use it.</b> Click a card with ▸ to reveal its details or likely question.
+          <b>⤒ Top / ▲ / ▼ / ⤓ Bottom</b> reorder the deck like a playlist. <b style="color:var(--ok)">✓ Understood</b> adds +1
+          each time you review a point and get it; <b style="color:var(--bad)">✗ Not yet</b> adds −1 each time you don't.
+          “Weakest first” pulls your shakiest points to the top. Your order and counts are saved in this browser.</div>
+        <div id="deckRoot"></div>
+      </article>
+
+      <nav class="pager" id="pager"></nav>
+    </main>
+  </div>
+
+  <aside class="drawer" id="glossary" hidden>
+    <button class="btn ghost small close" id="glossaryClose">Close</button>
+    <h2>Notation</h2>
+    <input type="search" id="glossarySearch" placeholder="Filter symbols…">
+    <table class="tbl" id="glossaryTable"></table>
+  </aside>
+
+  <div id="tip"></div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <script defer src="learn.js"></script>
+  <script defer src="deck.js"></script>
+</body>
+
+</html>
