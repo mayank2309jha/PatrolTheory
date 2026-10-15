@@ -98,18 +98,30 @@
     <div id="stage1Output"></div>
     <h3>Allocation at a glance</h3>
     <div id="stage1Visual"></div>
+    <h3>Where every flying hour goes (Sankey)</h3>
+    <div id="stage1Sankey"></div>
+    <h3>Value at stake vs. hours spent (treemap)</h3>
+    <div id="stage1Treemap"></div>
   </section>
 
   <!-- ============================= STAGE 2 ============================= -->
   <section>
     <h2>4. Stage 2 — Mixed Strategy (Feasibility LP)</h2>
     <div id="stage2Output"></div>
+    <h3>Realised payoff in a single month (diverging heatmap)</h3>
+    <div id="stage2Heatmap"></div>
   </section>
 
   <!-- ============================= STAGE 3 ============================= -->
   <section>
     <h2>5. Stage 3 — Patrol Timetables &amp; Aircraft Assignment</h2>
     <div id="stage3Output"></div>
+    <h3>All plans together &mdash; Gantt chart of the first 10 days</h3>
+    <div id="mixGantt"></div>
+    <h3>The mixed strategy over the whole month (calendar heatmap)</h3>
+    <div id="mixCalendar"></div>
+    <h3>The mixed strategy as a 24-hour clock (radial clock)</h3>
+    <div id="mixClock"></div>
     <h3>Month playback &mdash; watch the patrols fly (1 second = 1 hour)</h3>
     <div id="playbackOutput"></div>
   </section>
@@ -124,8 +136,17 @@
   <section>
     <h2>7. Comparison with Baseline Patrol Policies</h2>
     <div id="baselineOutput"></div>
+    <h3>Coverage you can count &mdash; 100 random moments per barrier</h3>
+    <div id="baselineIconArray"></div>
   </section>
 
+  <!-- ============================= MONTE CARLO ============================= -->
+  <section>
+    <h2>8. Monte Carlo Check &mdash; Attack the Mixed Strategy</h2>
+    <div id="monteCarloOutput"></div>
+  </section>
+
+  <!-- DEV-ONLY:START  (everything down to DEV-ONLY:END is removed from the GitHub Pages build) -->
   <!-- ============================= LEARN THE PAPER ============================= -->
   <section class="learn-cta">
     <h2>Want to understand the paper behind these numbers?</h2>
@@ -150,6 +171,7 @@
       clock, calendar heatmap, network, Monte Carlo animation and more), each with a note on what that form reveals.</p>
     <a class="learn-btn" href="gallery.html">Twenty ways to see it &rarr;</a>
   </section>
+  <!-- DEV-ONLY:END -->
 
   <footer class="muted small">
     Vanilla HTML/CSS/JS &middot; no build step &middot; open with Live Server.

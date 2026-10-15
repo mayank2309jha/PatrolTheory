@@ -601,6 +601,9 @@ function renderStage3(p, d, s3) {
         ${plan.unassigned > 0
           ? `<span class="error">${plan.unassigned} sorties could not be assigned to any aircraft — the fleet is too small for this plan; see Section 6 (Minimum Fleet Size).</span>`
           : '<span class="ok">All sorties successfully assigned within the gap and budget constraints.</span>'}</p>
+
+        <h4>Gantt chart &mdash; who flies when (first ${Math.min(GANTT_DAYS, p.T_days)} days)</h4>
+        ${planGanttSvg(p, d, plan)}
       </div>`;
   });
   el.innerHTML = html;
@@ -717,6 +720,469 @@ function renderAllocationVisual(p, d, s1) {
   el.innerHTML = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${y}" width="100%" style="min-width:640px;font-family:inherit" role="img" aria-label="Fleet and barrier coverage icons">${svg}</svg></div>
     <p class="muted small">Each shield is one barrier; the coloured fill is its coverage probability P<sub>k</sub> = &mu;h<sub>k</sub>/(n<sub>k</sub>T).
     The aircraft colours show how the fleet's total flying hours are split between types (an equivalent count — in Stage 3 every aircraft flies sorties for several types).</p>`;
+}
+
+/* ---------------- Sankey of flying hours and 100-dot icon array ---------------- */
+
+// Up to 5 barrier types get their own colour; with more than 5 the new charts go black and white.
+const MAX_COLOUR_TYPES = 5;
+const vizColor = (k, K) => (K > MAX_COLOUR_TYPES ? '#1a1a1a' : typeColor(k));
+const bwNote = K => (K > MAX_COLOUR_TYPES ? ` More than ${MAX_COLOUR_TYPES} barrier types, so this chart is drawn in black and white; read the type from the labels.` : '');
+
+function renderSankey(p, d, s1) {
+  const el = document.getElementById('stage1Sankey');
+  if (!s1.feasible || !(d.B > 0)) { el.innerHTML = ''; return; }
+
+  const K = p.K, nw = 14, top = 10, cols = [0, 200, 410, 620], W = 780;
+  const loss = d.B - d.B_eff;
+  // Vertical scale: grows with the number of barriers so the last column stays readable.
+  const scale = Math.max(260, d.Nb * 16) / d.B;
+  const minStep = [0, 20, 20, 15]; // minimum vertical slot per node so labels never overlap
+  const gaps = [0, 12, 16, 4];
+
+  const nodes = [];
+  const add = (col, label, val, color, tipText) => { nodes.push({ col, label, val, color, tipText, h: Math.max(1.5, val * scale) }); return nodes.length - 1; };
+  const nB = add(0, `Fleet hours B = ${fmt(d.B, 0)} h`, d.B, '#666', `N × F = ${p.N} × ${p.F}`);
+  const nE = add(1, `Usable B_eff = ${fmt(d.B_eff, 0)} h`, d.B_eff, 'var(--accent)', `${d.N_srt} whole sorties × ${p.tau_p} h`);
+  const nL = loss > 1e-9 ? add(1, `Rounding loss ${fmt(loss, 1)} h`, loss, 'var(--error)', 'Hours that do not make a whole sortie') : null;
+  const nT = [], nBar = [];
+  for (let k = 0; k < K; k++) {
+    const active = s1.active.includes(k);
+    nT.push(add(2, `Type ${k + 1}: ${fmt(s1.h[k], 1)} h${active ? '' : ' (inactive)'}`, s1.h[k], vizColor(k, K),
+      `h${k + 1}* = ${fmt(s1.h[k], 2)} h = ${fmt(s1.h[k] / p.tau_p, 2)} sorties`));
+  }
+  for (let k = 0; k < K; k++) {
+    const per = s1.h[k] / p.n[k];
+    for (let i = 0; i < p.n[k]; i++) nBar.push({ k, idx: add(3, `T${k + 1}·B${i + 1}: ${fmt(per, 1)} h`, per, vizColor(k, K), `Type ${k + 1}, barrier ${i + 1}: ${fmt(per, 2)} h`) });
+  }
+
+  let H = 0;
+  [0, 1, 2, 3].forEach(c => {
+    let y = top;
+    nodes.filter(n => n.col === c).forEach(n => { n.y = y; n.inO = 0; n.outO = 0; y += Math.max(n.h + gaps[c], minStep[c]); });
+    H = Math.max(H, y);
+  });
+  H += 10;
+
+  const links = [[nB, nE, d.B_eff, 'var(--accent)']];
+  if (nL !== null) links.push([nB, nL, loss, 'var(--error)']);
+  for (let k = 0; k < K; k++) links.push([nE, nT[k], s1.h[k], vizColor(k, K)]);
+  nBar.forEach(({ k, idx }) => links.push([nT[k], idx, s1.h[k] / p.n[k], vizColor(k, K)]));
+
+  let svg = '';
+  links.forEach(([s, t, v, c]) => {
+    if (!(v > 1e-9)) return;
+    const S = nodes[s], Tn = nodes[t], w = Math.max(1, v * scale);
+    const x0 = cols[S.col] + nw, x1 = cols[Tn.col], y0 = S.y + S.outO, y1 = Tn.y + Tn.inO, xm = (x0 + x1) / 2;
+    S.outO += w; Tn.inO += w;
+    svg += `<path d="M${x0},${y0} C${xm},${y0} ${xm},${y1} ${x1},${y1} L${x1},${y1 + w} C${xm},${y1 + w} ${xm},${y0 + w} ${x0},${y0 + w} Z" fill="${c}" fill-opacity="0.25"><title>${fmt(v, 2)} flying hours</title></path>`;
+  });
+  nodes.forEach(n => {
+    svg += `<rect x="${cols[n.col]}" y="${n.y}" width="${nw}" height="${n.h}" fill="${n.color}" rx="2"><title>${n.tipText}</title></rect>`;
+    svg += `<text x="${cols[n.col] + nw + 6}" y="${n.y + Math.min(n.h, 20) / 2 + 4}" font-size="${n.col === 3 ? 11 : 12}" font-weight="${n.col === 3 ? 400 : 600}" stroke="#fff" stroke-width="3" paint-order="stroke">${n.label}</text>`;
+  });
+
+  el.innerHTML = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:640px;font-family:inherit" role="img" aria-label="Sankey diagram of flying hours from fleet budget to individual barriers">${svg}</svg></div>
+    <p class="muted small">Left to right: the fleet's total flying hours B, the part usable as whole sorties B<sub>eff</sub>, the Stage-1 split h<sub>k</sub>* across barrier types,
+    and each type's hours shared equally among its n<sub>k</sub> barriers. Band widths are proportional to hours, so every split adds up. Hover a band or bar for exact values.${bwNote(K)}</p>`;
+}
+
+let iconArrayPolicy = 'Stackelberg Optimal';
+
+function renderIconArray(p, d, s1, bl) {
+  const el = document.getElementById('baselineIconArray');
+  const K = p.K;
+  const policies = [
+    ['Uniform Random', bl.uniform.h],
+    ['Value-Proportional', bl.valueProportional.h],
+    ['Greedy (Highest-Value First)', bl.greedy.h],
+    ['Stackelberg Optimal', s1.h]
+  ];
+  if (!policies.some(([name]) => name === iconArrayPolicy)) iconArrayPolicy = 'Stackelberg Optimal';
+
+  const draw = () => {
+    const h = policies.find(([name]) => name === iconArrayPolicy)[1];
+    const P = h.map((hk, k) => Math.min(1, Math.max(0, (d.mu * hk) / (p.n[k] * d.T))));
+    const cell = 18, grid = 10 * cell, colW = grid + 70, perRow = 3, W = 20 + perRow * colW, blockH = grid + 44;
+    let svg = '';
+    for (let k = 0; k < K; k++) {
+      const ox = 20 + (k % perRow) * colW, oy = Math.floor(k / perRow) * blockH;
+      const filled = Math.round(P[k] * 100), c = vizColor(k, K);
+      svg += `<text x="${ox}" y="${oy + 16}" font-size="13" font-weight="600" fill="${c}">Type ${k + 1}: ${filled} of 100</text>`;
+      for (let i = 0; i < 100; i++) {
+        const x = ox + (i % 10) * cell + cell / 2, y = oy + 30 + Math.floor(i / 10) * cell;
+        svg += `<circle cx="${x}" cy="${y}" r="6.5" fill="${i < filled ? c : 'none'}" stroke="${c}" stroke-width="1.3"/>`;
+      }
+    }
+    const H = Math.ceil(K / perRow) * blockH;
+    el.querySelector('.ia-out').innerHTML = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;min-width:420px;font-family:inherit" role="img" aria-label="Icon array of barrier coverage under ${iconArrayPolicy}">${svg}</svg></div>
+      <p class="muted small">Pick a policy above. Each grid is one barrier of that type watched at 100 random moments in the period:
+      a filled dot means an aircraft is protecting it at that moment, a hollow dot means an attack then would succeed (P<sub>k</sub> = &mu;h<sub>k</sub>/(n<sub>k</sub>T), capped at 100).
+      Fixed Deterministic is left out because an observant attacker always finds it unprotected (0 of 100).${bwNote(K)}</p>`;
+    el.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.policy === iconArrayPolicy));
+  };
+
+  el.innerHTML = `<div class="seg">${policies.map(([name]) => `<button type="button" data-policy="${name}">${name}</button>`).join('')}</div><div class="ia-out"></div>`;
+  el.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { iconArrayPolicy = b.dataset.policy; draw(); }));
+  draw();
+}
+
+/* ---------------- Shared helpers for the extra charts ---------------- */
+
+const GANTT_DAYS = 10; // window shown by the Gantt charts; set to 30 (or more) to show the whole period
+
+function mixRGB(a, b, t) { t = Math.max(0, Math.min(1, t)); return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(',')})`; }
+const HM_RED = [214, 69, 69], HM_MID = [214, 216, 222], HM_BLUE = [42, 120, 214], SEQ_LO = [236, 241, 250], SEQ_HI = [20, 70, 150];
+const divergeColor = (x, m) => (x < 0 ? mixRGB(HM_MID, HM_RED, -x / m) : mixRGB(HM_MID, HM_BLUE, x / m));
+const seqColor = t => mixRGB(SEQ_LO, SEQ_HI, t);
+const legendHtml = items => `<div class="legend">${items.map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+const typeLegend = p => (p.K > MAX_COLOUR_TYPES ? '' : legendHtml(p.n.map((_, k) => [vizColor(k, p.K), `Type ${k + 1} (n = ${p.n[k]}, v = ${p.v[k]})`])));
+const sgnFmt = (x, dec = 2) => (x > 0.5 * 10 ** -dec ? '+' : '') + fmt(x, dec);
+const hhmm = t => { const m = Math.round(t * 60); return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+const barrierOffsets = p => p.n.map((_, k) => p.n.slice(0, k).reduce((a, b) => a + b, 0));
+const svgBox = (W, H, body, label, minW = 640) => `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${minW}px;font-family:inherit" role="img" aria-label="${label}">${body}</svg></div>`;
+// Plan weights normalised to sum to 1 (the LP can leave a tiny numerical remainder).
+const planWeights = plans => { const t = plans.reduce((s, x) => s + x.prob, 0) || 1; return plans.map(x => x.prob / t); };
+
+// Fraction of each time bin during which each barrier is protected (aircraft overhead or safe
+// period) in one plan. Only sorties that got an aircraft count. Returns one array per barrier.
+function coverageBins(p, d, plan, binH) {
+  const nBins = Math.ceil(d.T / binH - 1e-9), off = barrierOffsets(p);
+  const cov = Array.from({ length: d.Nb }, () => new Float64Array(nBins));
+  plan.events.forEach(ev => {
+    if (ev.aircraft === null) return;
+    const b = off[ev.type] + ev.barrierIdx, end = Math.min(d.T, ev.safeUntil);
+    for (let i = Math.floor(ev.start / binH); i < nBins && i * binH < end; i++) {
+      const o = Math.min(end, (i + 1) * binH) - Math.max(ev.start, i * binH);
+      if (o > 0) cov[b][i] += o / binH;
+    }
+  });
+  cov.forEach(a => { for (let i = 0; i < a.length; i++) if (a[i] > 1) a[i] = 1; });
+  return cov;
+}
+
+/* ---------------- Treemap (end of Stage 1) ---------------- */
+
+let treemapMode = 'value';
+
+function renderTreemap(p, d, s1) {
+  const el = document.getElementById('stage1Treemap');
+  if (!s1.feasible) { el.innerHTML = ''; return; }
+  const K = p.K;
+  const draw = () => {
+    const W = 760, H = 300;
+    const items = [];
+    for (let k = 0; k < K; k++) for (let i = 0; i < p.n[k]; i++) items.push({ k, i, w: treemapMode === 'value' ? p.v[k] : s1.h[k] / p.n[k] });
+    const tot = items.reduce((s, t) => s + t.w, 0) || 1;
+    let svg = '', x = 0;
+    for (let k = 0; k < K; k++) {
+      const its = items.filter(t => t.k === k), tw = its.reduce((s, t) => s + t.w, 0), cw = (tw / tot) * W;
+      if (cw > 0.5) {
+        let y = 0;
+        its.forEach(t => {
+          const h = (t.w / tw) * H;
+          svg += `<rect x="${x + 1}" y="${y + 1}" width="${Math.max(0, cw - 2)}" height="${Math.max(0, h - 2)}" rx="3" fill="${vizColor(k, K)}" fill-opacity="${0.35 + 0.65 * Math.min(1, s1.P[k])}">
+            <title>Type ${k + 1}, barrier ${t.i + 1}: value ${p.v[k]}, ${fmt(s1.h[k] / p.n[k], 1)} h, coverage ${fmt(s1.P[k] * 100, 1)}%</title></rect>`;
+          if (cw > 44 && h > 22) svg += `<text x="${x + 8}" y="${y + 17}" font-size="12" font-weight="700" fill="#fff" pointer-events="none">T${k + 1}·B${t.i + 1}</text>`;
+          if (cw > 44 && h > 38) svg += `<text x="${x + 8}" y="${y + 32}" font-size="10" fill="#fff" pointer-events="none">${treemapMode === 'value' ? `value ${p.v[k]}` : `${fmt(t.w, 0)} h`}</text>`;
+          y += h;
+        });
+      }
+      const label = cw > 90 ? `Type ${k + 1}: ${fmt((tw / tot) * 100, 0)}%` : cw > 30 ? `T${k + 1}` : '';
+      if (label) svg += `<text x="${x + cw / 2}" y="${H + 18}" text-anchor="middle" font-size="12" font-weight="600">${label}</text>`;
+      x += cw;
+    }
+    el.querySelector('.tm-out').innerHTML = svgBox(W, H + 26, svg, 'Treemap of barriers') +
+      `<p class="muted small">Each rectangle is one barrier, grouped by type. Switch between area = military value v<sub>k</sub> and area = flying hours per barrier h<sub>k</sub>*/n<sub>k</sub>.
+      Darker fill means higher coverage P<sub>k</sub>. The Stage-1 optimum does not spend hours in proportion to value: it spreads them by barrier count, so a high-value barrier gets roughly the hours of a low-value one.
+      ${s1.active.length < K ? 'Inactive types get no hours, so they vanish in the hours view.' : ''}${bwNote(K)}</p>`;
+    el.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === treemapMode));
+  };
+  el.innerHTML = `<div class="seg"><button type="button" data-mode="value">Area = value at stake</button><button type="button" data-mode="hours">Area = flying hours received</button></div><div class="tm-out"></div>`;
+  el.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { treemapMode = b.dataset.mode; draw(); }));
+  draw();
+}
+
+/* ---------------- Diverging heatmap (Stage 2) ---------------- */
+
+function renderPayoffHeatmap(p, d, s1, s3) {
+  const el = document.getElementById('stage2Heatmap');
+  if (!s3.plans || !s3.plans.length) { el.innerHTML = ''; return; }
+  const K = p.K;
+  // Realised payoff if plan m is the month's plan and the attacker hits type k.
+  const U = (k, m) => p.v[k] * (2 * Math.min(1, (d.mu * m * p.tau_p) / (p.n[k] * d.T)) - 1);
+  const w = planWeights(s3.plans);
+  const rows = s3.plans.map((pl, j) => ({ name: `Plan ${pl.label} (${pl.mVec.join(', ')}) · ${fmt(w[j] * 100, 1)}%`, u: p.n.map((_, k) => U(k, pl.mVec[k])) }));
+  const mixed = p.n.map((_, k) => rows.reduce((s, r, j) => s + w[j] * r.u[k], 0));
+  rows.push({ name: 'Mixed strategy (expected)', u: mixed, bold: true, gapBefore: true });
+  for (let k = 0; k < K; k++) {
+    const m = new Array(K).fill(0); m[k] = d.N_srt;
+    rows.push({ name: `Canonical: all ${d.N_srt} sorties on Type ${k + 1}`, u: p.n.map((_, kk) => U(kk, m[kk])), gapBefore: k === 0 });
+  }
+  const vmax = Math.max(...p.v), x0 = 290, cw = Math.max(72, Math.min(120, 470 / (K + 1))), rh = 32;
+  const W = x0 + (K + 1) * cw + 10;
+  let svg = '';
+  for (let c = 0; c <= K; c++) svg += `<text x="${x0 + c * cw + cw / 2}" y="18" text-anchor="middle" font-size="12" font-weight="600">${c < K ? `attack T${c + 1}` : 'worst case'}</text>`;
+  let y = 28;
+  rows.forEach(r => {
+    if (r.gapBefore) y += 14;
+    svg += `<text x="${x0 - 10}" y="${y + 19}" text-anchor="end" font-size="12" font-weight="${r.bold ? 700 : 400}">${r.name}</text>`;
+    r.u.concat([Math.min(...r.u)]).forEach((u, c) => {
+      svg += `<rect x="${x0 + c * cw + 2}" y="${y}" width="${cw - 4}" height="${rh - 4}" rx="4" fill="${divergeColor(u, vmax)}"><title>${r.name}, ${c < K ? 'attack Type ' + (c + 1) : 'worst case'}: ${sgnFmt(u)}</title></rect>
+        <text x="${x0 + c * cw + cw / 2}" y="${y + 18}" text-anchor="middle" font-size="12" font-weight="${c === K ? 700 : 500}" fill="#111">${sgnFmt(u)}</text>`;
+    });
+    y += rh;
+  });
+  el.innerHTML = svgBox(W, y + 6, svg, 'Diverging heatmap of realised payoffs', 600) +
+    legendHtml([[mixRGB(HM_MID, HM_RED, 1), 'defender loss'], [mixRGB(HM_MID, HM_BLUE, 0), 'about zero'], [mixRGB(HM_MID, HM_BLUE, 1), 'defender gain']]) +
+    `<p class="muted small">Each cell is the defender's payoff U<sub>d</sub>(k) = v<sub>k</sub>(2P<sub>k</sub> &minus; 1) if that row's plan is the one flown this month and the attacker strikes that column's type.
+    The floor/ceiling plans stay close to the Stage-1 value in every column, so whichever plan the coin picks, no type is badly exposed. The expected row equals z* = ${fmt(s1.z, 4)} for every active type.
+    The canonical rows (all sorties on one type) are shown for contrast: they swing between large gains and large losses, and an attacker simply picks the red column.</p>`;
+}
+
+/* ---------------- Gantt charts (Stage 3) ---------------- */
+
+// One plan: one row per aircraft, a bar per sortie, coloured by barrier type.
+function planGanttSvg(p, d, plan) {
+  const days = Math.min(GANTT_DAYS, p.T_days), win = days * 24, K = p.K;
+  const unassigned = plan.events.filter(e => e.aircraft === null && e.start < win);
+  const rows = p.N + (unassigned.length ? 1 : 0);
+  const ml = 58, mr = 10, W = 960, rh = p.N > 40 ? 9 : 13, top = 22, H = top + rows * rh + 26;
+  const sx = t => ml + (t / win) * (W - ml - mr);
+  let svg = '';
+  for (let dd = 0; dd <= days; dd++) {
+    svg += `<line x1="${sx(dd * 24)}" x2="${sx(dd * 24)}" y1="${top - 4}" y2="${top + rows * rh}" stroke="#ccc"/>`;
+    if (dd < days) svg += `<text x="${sx(dd * 24 + 12)}" y="${top - 8}" text-anchor="middle" font-size="11">Day ${dd + 1}</text>`;
+  }
+  for (let a = 0; a < p.N; a++) {
+    const y = top + a * rh;
+    if (rh >= 12 || a % 2 === 0) svg += `<text x="${ml - 6}" y="${y + rh - 3}" text-anchor="end" font-size="${rh >= 12 ? 10 : 8}">AC-${a + 1}</text>`;
+    svg += `<rect x="${ml}" y="${y + 1}" width="${W - ml - mr}" height="${rh - 2}" fill="#f4f4f6"/>`;
+  }
+  plan.events.forEach(e => {
+    if (e.start >= win) return;
+    const row = e.aircraft === null ? p.N : e.aircraft, y = top + row * rh;
+    const fill = e.aircraft === null ? 'none' : vizColor(e.type, K), stroke = e.aircraft === null ? 'var(--error)' : 'none';
+    svg += `<rect x="${sx(e.start)}" y="${y + 1}" width="${Math.max(1.5, sx(Math.min(win, e.end)) - sx(e.start))}" height="${rh - 2}" rx="1.5" fill="${fill}" stroke="${stroke}">
+      <title>${e.aircraft === null ? 'UNASSIGNED' : 'AC-' + (e.aircraft + 1)} → Type ${e.type + 1} / Barrier ${e.barrierIdx + 1}, ${fmtDayTime(e.start)} – ${hhmm(e.end)}</title></rect>`;
+  });
+  if (unassigned.length) svg += `<text x="${ml - 6}" y="${top + p.N * rh + rh - 3}" text-anchor="end" font-size="10" fill="var(--error)">none</text>`;
+  svg += `<text x="${(ml + W - mr) / 2}" y="${H - 6}" text-anchor="middle" font-size="11">Time (first ${days} days of the ${p.T_days}-day period)</text>`;
+  return svgBox(W, H, svg, 'Gantt chart of aircraft sorties', 760) + typeLegend(p) +
+    `<p class="muted small">One row per aircraft; each bar is a ${p.tau_p} h sortie, coloured by the barrier type it patrols. Hover a bar for details.
+    ${unassigned.length ? `<span class="error">Red outlines in the last row are sorties no aircraft could fly.</span>` : ''}${bwNote(K)}</p>`;
+}
+
+// All plans together: one group of lanes per barrier, one lane per plan.
+function renderMixGantt(p, d, s3) {
+  const el = document.getElementById('mixGantt');
+  if (!s3.plans || !s3.plans.length) { el.innerHTML = ''; return; }
+  const days = Math.min(GANTT_DAYS, p.T_days), win = days * 24, K = p.K, J = s3.plans.length, w = planWeights(s3.plans);
+  const lane = J * d.Nb > 120 ? 7 : 10, groupGap = 5, ml = 130, mr = 10, W = 960, top = 22;
+  const H = top + d.Nb * (J * lane + groupGap) + 26;
+  const sx = t => ml + (t / win) * (W - ml - mr);
+  const off = barrierOffsets(p);
+  const groupY = b => top + b * (J * lane + groupGap);
+  let svg = '';
+  for (let dd = 0; dd <= days; dd++) {
+    svg += `<line x1="${sx(dd * 24)}" x2="${sx(dd * 24)}" y1="${top - 4}" y2="${H - 26}" stroke="#ccc"/>`;
+    if (dd < days) svg += `<text x="${sx(dd * 24 + 12)}" y="${top - 8}" text-anchor="middle" font-size="11">Day ${dd + 1}</text>`;
+  }
+  for (let k = 0; k < K; k++) for (let i = 0; i < p.n[k]; i++) {
+    const y0 = groupY(off[k] + i);
+    svg += `<text x="6" y="${y0 + (J * lane) / 2 + 4}" font-size="11" font-weight="600" fill="${vizColor(k, K)}">T${k + 1}·B${i + 1}</text>`;
+    s3.plans.forEach((pl, j) => {
+      const y = y0 + j * lane;
+      svg += `<rect x="${ml}" y="${y + 0.5}" width="${W - ml - mr}" height="${lane - 1}" fill="${j % 2 ? '#f7f7f9' : '#efeff2'}"/>`;
+      if (lane >= 9) svg += `<text x="${ml - 6}" y="${y + lane - 2}" text-anchor="end" font-size="9">${pl.label} · ${fmt(w[j] * 100, 0)}%</text>`;
+    });
+  }
+  s3.plans.forEach((pl, j) => {
+    pl.plan.events.forEach(e => {
+      if (e.start >= win) return;
+      const y = groupY(off[e.type] + e.barrierIdx) + j * lane, c = vizColor(e.type, K);
+      const x0 = sx(e.start), x1 = sx(Math.min(win, e.end)), x2 = sx(Math.min(win, e.safeUntil));
+      if (e.aircraft === null) {
+        svg += `<rect x="${x0}" y="${y + 1}" width="${Math.max(1.5, x2 - x0)}" height="${lane - 2}" fill="none" stroke="var(--error)"><title>Plan ${pl.label}: unassigned sortie, ${fmtDayTime(e.start)}</title></rect>`;
+        return;
+      }
+      svg += `<rect x="${x1}" y="${y + 1}" width="${Math.max(0, x2 - x1)}" height="${lane - 2}" fill="${c}" fill-opacity="0.3"/>
+        <rect x="${x0}" y="${y + 1}" width="${Math.max(1.5, x1 - x0)}" height="${lane - 2}" fill="${c}"><title>Plan ${pl.label}: Type ${e.type + 1} / Barrier ${e.barrierIdx + 1} patrolled ${fmtDayTime(e.start)} – ${hhmm(e.end)} (AC-${e.aircraft + 1}), safe until ${hhmm(e.safeUntil)}</title></rect>`;
+    });
+  });
+  svg += `<text x="${(ml + W - mr) / 2}" y="${H - 6}" text-anchor="middle" font-size="11">Time (first ${days} days of the ${p.T_days}-day period)</text>`;
+  el.innerHTML = svgBox(W, H, svg, 'Gantt chart of all plans by barrier', 760) + typeLegend(p) +
+    `<p class="muted small">One block per barrier and one lane per plan in the mix (letter and mixing probability on the left). Solid = aircraft overhead (${p.tau_p} h); light = the safe period that follows (${p.tau_s} h).
+    Only one plan is flown in a given month, picked at random with these probabilities, so read each lane as "what this barrier's month looks like if that plan is drawn".
+    Within a plan the visits to a barrier are evenly spaced; across plans the phase is re-randomised, so the attacker cannot predict the timing.${bwNote(K)}</p>`;
+}
+
+/* ---------------- Calendar heatmap of the mixed strategy ---------------- */
+
+function renderMixCalendar(p, d, s1, s3) {
+  const el = document.getElementById('mixCalendar');
+  if (!s3.plans || !s3.plans.length) { el.innerHTML = ''; return; }
+  const w = planWeights(s3.plans), nH = Math.ceil(d.T - 1e-9);
+  const expected = new Float64Array(nH);
+  s3.plans.forEach((pl, j) => {
+    coverageBins(p, d, pl.plan, 1).forEach(arr => { for (let h = 0; h < nH; h++) expected[h] += w[j] * arr[h]; });
+  });
+  const nDays = Math.ceil(nH / 24), cw = 28, rh = nDays > 40 ? 9 : 14, x0 = 62, top = 20;
+  const W = x0 + 24 * cw + 120, gridH = top + nDays * rh;
+  let svg = '';
+  for (let h = 0; h < 24; h += 3) svg += `<text x="${x0 + h * cw + cw / 2}" y="12" text-anchor="middle" font-size="10">${String(h).padStart(2, '0')}:00</text>`;
+  for (let h = 0; h < nH; h++) {
+    const day = Math.floor(h / 24), hr = h % 24, v = expected[h];
+    svg += `<rect x="${x0 + hr * cw}" y="${top + day * rh}" width="${cw - 2}" height="${rh - 2}" rx="2" fill="${seqColor(v / d.Nb)}"><title>Day ${day + 1}, ${String(hr).padStart(2, '0')}:00–${String(hr + 1).padStart(2, '0')}:00: ${fmt(v, 2)} of ${d.Nb} barriers protected on average (${fmt((v / d.Nb) * 100, 1)}%)</title></rect>`;
+  }
+  const step = nDays > 15 ? 5 : 1;
+  for (let dd = 0; dd < nDays; dd += step) svg += `<text x="${x0 - 6}" y="${top + dd * rh + rh - 4}" text-anchor="end" font-size="10">Day ${dd + 1}</text>`;
+  // vertical colour scale on the right
+  const lx = x0 + 24 * cw + 30, lh = Math.min(200, gridH - top);
+  for (let i = 0; i < 20; i++) svg += `<rect x="${lx}" y="${top + lh - (i + 1) * (lh / 20)}" width="16" height="${lh / 20 + 0.5}" fill="${seqColor((i + 0.5) / 20)}"/>`;
+  svg += `<text x="${lx + 22}" y="${top + 8}" font-size="10">100%</text><text x="${lx + 22}" y="${top + lh / 2 + 4}" font-size="10">50%</text><text x="${lx + 22}" y="${top + lh}" font-size="10">0%</text>`;
+  svg += `<text x="${lx}" y="${top + lh + 18}" font-size="10">of barriers</text><text x="${lx}" y="${top + lh + 30}" font-size="10">protected</text>`;
+  const avg = expected.reduce((a, b) => a + b, 0) / nH;
+  const predicted = p.n.reduce((s, nk, k) => s + nk * Math.min(1, s1.P[k]), 0);
+  el.innerHTML = svgBox(W, Math.max(gridH, top + lh + 36) + 6, svg, 'Calendar heatmap of expected protection', 640) +
+    `<p class="muted small">One row per day, one cell per hour. Each cell is the expected number of barriers protected in that hour, averaging the plans by their mixing probabilities
+    (only sorties that got an aircraft count). Month average: <b>${fmt(avg, 2)} of ${d.Nb}</b> barriers (${fmt((avg / d.Nb) * 100, 1)}%); Stage 1 predicts
+    &sum; n<sub>k</sub>P<sub>k</sub>* = ${fmt(predicted, 2)}. An even colour means protection is spread evenly through the month, which is what the coverage formula assumes.</p>`;
+}
+
+/* ---------------- Radial clock of the mixed strategy ---------------- */
+
+function renderMixClock(p, d, s1, s3) {
+  const el = document.getElementById('mixClock');
+  if (!s3.plans || !s3.plans.length) { el.innerHTML = ''; return; }
+  const K = p.K, w = planWeights(s3.plans), binH = 0.25, perDay = 24 / binH;
+  const clock = Array.from({ length: d.Nb }, () => new Float64Array(perDay));
+  const counts = new Float64Array(perDay);
+  const nBins = Math.ceil(d.T / binH - 1e-9);
+  for (let i = 0; i < nBins; i++) counts[i % perDay]++;
+  s3.plans.forEach((pl, j) => {
+    coverageBins(p, d, pl.plan, binH).forEach((arr, b) => { for (let i = 0; i < arr.length; i++) clock[b][i % perDay] += w[j] * arr[i]; });
+  });
+  clock.forEach(a => { for (let s = 0; s < perDay; s++) a[s] /= counts[s] || 1; });
+
+  const cx = 250, cy = 250, r0 = 58, rOut = 210, rw = Math.min(16, (rOut - r0) / d.Nb);
+  const pt = (r, hr) => [cx + r * Math.sin((hr / 24) * 2 * Math.PI), cy - r * Math.cos((hr / 24) * 2 * Math.PI)];
+  const arc = (r, a0, a1) => { const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1); return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };
+  const off = barrierOffsets(p);
+  let svg = '';
+  for (let k = 0; k < K; k++) for (let i = 0; i < p.n[k]; i++) {
+    const b = off[k] + i, r = r0 + b * rw + rw / 2;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f0f0f2" stroke-width="${rw - 1}"/>`;
+    const mean = clock[b].reduce((a, c) => a + c, 0) / perDay;
+    for (let s = 0; s < perDay; s++) {
+      const v = clock[b][s];
+      if (v < 0.005) continue;
+      svg += `<path d="${arc(r, s * binH, (s + 1) * binH)}" fill="none" stroke="${vizColor(k, K)}" stroke-opacity="${v.toFixed(3)}" stroke-width="${rw - 1}"><title>T${k + 1}·B${i + 1}, ${hhmm(s * binH)}–${hhmm((s + 1) * binH)}: protected ${fmt(v * 100, 1)}% of the time (24 h average ${fmt(mean * 100, 1)}%)</title></path>`;
+    }
+  }
+  for (let h = 0; h < 24; h += 3) {
+    const [x, y] = pt(rOut + 18, h), [ax, ay] = pt(r0 - 4, h), [bx, by] = pt(rOut + 4, h);
+    svg += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#999" stroke-width="0.6" stroke-dasharray="2 3"/><text x="${x}" y="${y + 4}" text-anchor="middle" font-size="11" font-weight="600">${String(h).padStart(2, '0')}:00</text>`;
+  }
+  svg += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="12" font-weight="600">Mixed</text><text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="11">strategy</text>`;
+  // side key: ring order and per-type averages
+  let ty = 70;
+  svg += `<text x="510" y="${ty}" font-size="12" font-weight="600">Inner ring → outer ring</text>`;
+  for (let k = 0; k < K; k++) {
+    ty += 20;
+    const avg = p.n[k] ? clock.slice(off[k], off[k] + p.n[k]).reduce((s, a) => s + a.reduce((x, y) => x + y, 0) / perDay, 0) / p.n[k] : 0;
+    svg += `<rect x="510" y="${ty - 10}" width="12" height="12" rx="2" fill="${vizColor(k, K)}"/><text x="528" y="${ty}" font-size="11">Type ${k + 1}: B1…B${p.n[k]} · ${fmt(avg * 100, 1)}% (P* ${fmt(Math.min(1, s1.P[k]) * 100, 1)}%)</text>`;
+  }
+  ty += 30;
+  ['Darker = protected more often at', 'that time of day, averaged over', `all ${p.T_days} days and all plans`, 'weighted by mixing probability.'].forEach(t => { svg += `<text x="510" y="${ty}" font-size="11" fill="#555">${t}</text>`; ty += 15; });
+  el.innerHTML = svgBox(780, 500, svg, 'Radial clock of protection by time of day', 600) +
+    `<p class="muted small">Each ring is one barrier; going round the ring is the 24-hour day in 15-minute slices. The shade is the probability that the barrier is protected at that time of day
+    under the mixed strategy. Even shading round each ring means no time of day is a predictable weak spot. Hover a slice for its value.${bwNote(K)}</p>`;
+}
+
+/* ---------------- Monte Carlo check ---------------- */
+
+let mcState = null;
+
+function renderMonteCarlo(p, d, s1, s3) {
+  if (mcState && mcState.raf) cancelAnimationFrame(mcState.raf);
+  mcState = null;
+  const el = document.getElementById('monteCarloOutput');
+  if (!s1.feasible || !s3.plans || !s3.plans.length) { el.innerHTML = '<p class="muted">Nothing to simulate (no feasible plan).</p>'; return; }
+  const K = p.K, TOTAL = 12000, PER_FRAME = 40, w = planWeights(s3.plans);
+  // q[j][k][i]: sorties barrier i of type k receives in plan j.
+  const q = s3.plans.map(pl => p.n.map((_, k) => pl.plan.barrierSchedules.filter(b => b.type === k).map(b => b.q)));
+
+  el.innerHTML = `<p class="muted small">Each simulated attack: the defender draws this month's plan with the mixing probabilities and fresh random phases;
+    the attacker, who cannot see either, picks a barrier type (uniformly), a random barrier of that type and a random moment in the period.
+    The attack is caught if the barrier is protected at that moment. Running catch rates should settle on the Stage-1 coverage P<sub>k</sub>*, and the average payoff on U<sub>d</sub>(k), the same for every active type.</p>
+    <div class="button-row"><button type="button" class="mc-run">&#9654; Run ${TOTAL.toLocaleString()} attacks</button><button type="button" class="secondary mc-reset">Reset</button></div>
+    <div class="mc-out"></div><div class="mc-table"></div>`;
+
+  const attack = () => {
+    const k = Math.floor(Math.random() * K), i = Math.floor(Math.random() * p.n[k]);
+    let u = Math.random(), j = 0;
+    for (; j < w.length - 1; j++) { u -= w[j]; if (u < 0) break; }
+    const qi = q[j][k][i];
+    let caught = false;
+    if (qi > 0) {
+      const delta = d.T / qi, span = delta - d.W, phi = span > 1e-9 ? Math.random() * span : 0, t = Math.random() * d.T;
+      caught = t >= phi && (t - phi) % delta < d.W;
+    }
+    const st = mcState;
+    st.n[k]++; if (caught) st.hit[k]++; st.pay[k] += caught ? p.v[k] : -p.v[k]; st.total++;
+  };
+
+  const draw = () => {
+    const st = mcState, W = 760, H = 300, ml = 52, mr = 70, mt = 14, mb = 40;
+    const targets = s1.P.map(x => Math.min(1, x));
+    const lo = Math.max(0, Math.min(...targets) - 0.15), hi = Math.min(1, Math.max(...targets) + 0.15);
+    const sx = x => ml + (x / TOTAL) * (W - ml - mr), sy = y => H - mb - ((Math.max(lo, Math.min(hi, y)) - lo) / (hi - lo)) * (H - mt - mb);
+    let svg = '';
+    for (let g = 0; g <= 4; g++) {
+      const v = lo + ((hi - lo) * g) / 4;
+      svg += `<line x1="${ml}" x2="${W - mr}" y1="${sy(v)}" y2="${sy(v)}" stroke="#eee"/><text x="${ml - 6}" y="${sy(v) + 4}" text-anchor="end" font-size="10">${fmt(v * 100, 0)}%</text>`;
+    }
+    for (let g = 0; g <= 4; g++) svg += `<text x="${sx((TOTAL * g) / 4)}" y="${H - mb + 15}" text-anchor="middle" font-size="10">${((TOTAL * g) / 4).toLocaleString()}</text>`;
+    svg += `<line x1="${ml}" x2="${W - mr}" y1="${H - mb}" y2="${H - mb}" stroke="#999"/>`;
+    svg += `<text x="${(ml + W - mr) / 2}" y="${H - 6}" text-anchor="middle" font-size="11">Total simulated attacks</text>`;
+    svg += `<text x="14" y="${(mt + H - mb) / 2}" text-anchor="middle" font-size="11" transform="rotate(-90 14 ${(mt + H - mb) / 2})">Catch rate so far</text>`;
+    for (let k = 0; k < K; k++) {
+      const c = vizColor(k, K);
+      svg += `<line x1="${ml}" x2="${W - mr}" y1="${sy(targets[k])}" y2="${sy(targets[k])}" stroke="${c}" stroke-dasharray="5 4" stroke-opacity="0.8"/>`;
+      if (st.hist[k].length > 1) svg += `<polyline fill="none" stroke="${c}" stroke-width="2" points="${st.hist[k].map(([x, y]) => `${sx(x).toFixed(1)},${sy(y).toFixed(1)}`).join(' ')}"/>`;
+      const last = st.hist[k].length ? st.hist[k][st.hist[k].length - 1] : [0, targets[k]];
+      svg += `<text x="${sx(last[0]) + 6}" y="${sy(last[1]) + 4}" font-size="11" font-weight="600" fill="${c}">T${k + 1}</text>`;
+    }
+    el.querySelector('.mc-out').innerHTML = svgBox(W, H, svg, 'Monte Carlo running catch rates', 560) +
+      `<p class="muted small">Solid lines: running catch rate per type. Dashed lines: Stage-1 prediction P<sub>k</sub>*. ${st.total.toLocaleString()} of ${TOTAL.toLocaleString()} attacks simulated.${bwNote(K)}</p>`;
+    let rows = '';
+    for (let k = 0; k < K; k++) {
+      rows += `<tr><td><span style="color:${vizColor(k, K)};font-weight:600">Type ${k + 1}</span></td><td>${st.n[k]}</td>
+        <td>${st.n[k] ? fmt((st.hit[k] / st.n[k]) * 100, 1) + '%' : '—'}</td><td>${fmt(targets[k] * 100, 1)}%</td>
+        <td>${st.n[k] ? sgnFmt(st.pay[k] / st.n[k]) : '—'}</td><td>${sgnFmt(s1.U[k])}</td></tr>`;
+    }
+    const allN = st.n.reduce((a, b) => a + b, 0);
+    el.querySelector('.mc-table').innerHTML = `<table><thead><tr><th>Type attacked</th><th>Attacks</th><th>Caught (simulated)</th><th>P<sub>k</sub>* (Stage 1)</th>
+      <th>Avg. defender payoff (simulated)</th><th>U<sub>d</sub>(k) (Stage 1)</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="muted small">Game value z* = ${fmt(s1.z, 4)}. ${allN >= TOTAL ? 'With this many attacks the simulated figures should sit within about &plusmn;2 percentage points of the predictions.' : ''}</p>`;
+  };
+
+  const loop = () => {
+    for (let s = 0; s < PER_FRAME && mcState.total < TOTAL; s++) attack();
+    for (let k = 0; k < K; k++) if (mcState.n[k]) mcState.hist[k].push([mcState.total, mcState.hit[k] / mcState.n[k]]);
+    draw();
+    mcState.raf = mcState.total < TOTAL ? requestAnimationFrame(loop) : null;
+  };
+  const reset = () => {
+    if (mcState && mcState.raf) cancelAnimationFrame(mcState.raf);
+    mcState = { n: new Array(K).fill(0), hit: new Array(K).fill(0), pay: new Array(K).fill(0), hist: p.n.map(() => []), total: 0, raf: null };
+    draw();
+  };
+  el.querySelector('.mc-run').addEventListener('click', () => { if (mcState.total >= TOTAL) reset(); if (!mcState.raf) mcState.raf = requestAnimationFrame(loop); });
+  el.querySelector('.mc-reset').addEventListener('click', reset);
+  reset();
+  mcState.raf = requestAnimationFrame(loop);
 }
 
 /* ---------------- Month playback ---------------- */
@@ -997,11 +1463,19 @@ function runAll() {
   renderDerived(p, d);
   renderStage1(p, s1);
   renderAllocationVisual(p, d, s1);
+  renderSankey(p, d, s1);
+  renderTreemap(p, d, s1);
   renderStage2(p, s2);
+  renderPayoffHeatmap(p, d, s1, s3);
   renderStage3(p, d, s3);
+  renderMixGantt(p, d, s3);
+  renderMixCalendar(p, d, s1, s3);
+  renderMixClock(p, d, s1, s3);
   setupPlayback(p, d, s3, s1);
   renderFleetSize(p, fs);
   renderBaselines(p, s1, bl);
+  renderIconArray(p, d, s1, bl);
+  renderMonteCarlo(p, d, s1, s3);
 }
 
 function resetDefaults() {

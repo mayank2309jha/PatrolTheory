@@ -1,0 +1,51 @@
+# Builds the production site for GitHub Pages.
+# The local index.html keeps the links to learn.html / beyond.html / gallery.html;
+# this workflow strips the block between DEV-ONLY:START and DEV-ONLY:END and
+# publishes only the planner itself (index.html, script.js, style.css).
+
+name: Deploy planner to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production site
+        run: |
+          mkdir -p _site
+          cp script.js style.css _site/
+          sed '/DEV-ONLY:START/,/DEV-ONLY:END/d' index.html > _site/index.html
+          # Fail the build if the markers were lost and the links slipped through.
+          if grep -qE 'learn\.html|beyond\.html|gallery\.html' _site/index.html; then
+            echo "Dev-only links still present in _site/index.html" >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
