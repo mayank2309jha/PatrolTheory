@@ -31,7 +31,7 @@ jobs:
           cp script.js style.css _site/
           sed '/DEV-ONLY:START/,/DEV-ONLY:END/d' index.html > _site/index.html
           # Fail the build if the markers were lost and the links slipped through.
-          if grep -qE 'learn\.html|beyond\.html|gallery\.html' _site/index.html; then
+          if grep -qE 'learn\.html|beyond\.html|gallery\.html|experiments\.html' _site/index.html; then
             echo "Dev-only links still present in _site/index.html" >&2
             exit 1
           fi

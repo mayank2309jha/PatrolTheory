@@ -469,16 +469,18 @@ function baselines(p, d) {
    ============================================================ */
 
 function renderDerived(p, d) {
+  const item = (icon, label, value, formula) =>
+    `<div title="${formula}"><svg class="ico"><use href="#i-${icon}"/></svg><span>${label}</span><b>${value}</b></div>`;
   document.getElementById('derivedOutput').innerHTML = `
-    <div class="kv-grid">
-      <div><b>Protection window W</b>${fmt(d.W)} h</div>
-      <div><b>Window multiplier &mu;</b>${fmt(d.mu)}</div>
-      <div><b>Min. gap between sorties G</b>${fmt(d.G)} h</div>
-      <div><b>Planning horizon T</b>${fmt(d.T, 0)} h (${p.T_days} days)</div>
-      <div><b>Total fleet flying hours B</b>${fmt(d.B)} h</div>
-      <div><b>Max integer sorties N<sub>srt</sub></b>${d.N_srt}</div>
-      <div><b>Integer-feasible budget B<sub>eff</sub></b>${fmt(d.B_eff)} h</div>
-      <div><b>Total barriers N<sub>b</sub></b>${d.Nb}</div>
+    <div class="kv-list">
+      ${item('shield-check', 'Protection window W', `${fmt(d.W)} h`, 'W = τp + τs')}
+      ${item('times', 'Window multiplier &mu;', fmt(d.mu), 'μ = W / τp')}
+      ${item('gap', 'Min. gap between sorties G', `${fmt(d.G)} h`, 'G = τp + τr')}
+      ${item('calendar', 'Planning horizon T', `${fmt(d.T, 0)} h (${p.T_days} d)`, 'T = days × 24')}
+      ${item('gauge', 'Total fleet flying hours B', `${fmt(d.B)} h`, 'B = N × F')}
+      ${item('hash', 'Max integer sorties N<sub>srt</sub>', d.N_srt, 'N_srt = floor(B / τp)')}
+      ${item('check', 'Integer-feasible budget B<sub>eff</sub>', `${fmt(d.B_eff)} h`, 'B_eff = N_srt × τp')}
+      ${item('flag', 'Total barriers N<sub>b</sub>', d.Nb, 'N_b = Σ n_k')}
     </div>`;
 }
 
@@ -578,7 +580,6 @@ function renderStage3(p, d, s3) {
         <td>${ev.aircraft !== null ? 'AC-' + (ev.aircraft + 1) : '<span class="error">UNASSIGNED</span>'}</td>
         <td>Type ${ev.type + 1} / Barrier ${ev.barrierIdx + 1}</td>
         <td>${fmtDayTime(ev.start)}</td>
-        <td>${fmtDayTime(ev.safeUntil)}</td>
       </tr>`).join('');
 
     const hoursArr = plan.aircraft.map(a => a.hours);
@@ -594,15 +595,15 @@ function renderStage3(p, d, s3) {
         <tbody>${bsRows}</tbody></table>
 
         <h4>Aircraft timetable (first ${windowEvents.length} of ${plan.totalSorties} sorties in the period)</h4>
-        <table><thead><tr><th>Aircraft</th><th>Barrier</th><th>Depart</th><th>Safe until</th></tr></thead>
-        <tbody>${evRows}</tbody></table>
+        <div class="scroll-box"><table><thead><tr><th>Aircraft</th><th>Barrier</th><th>Depart</th></tr></thead>
+        <tbody>${evRows}</tbody></table></div>
 
         <p class="muted small">Fleet utilisation over the full ${fmt(d.T, 0)} h period — hours flown per aircraft: min ${fmt(minH)}, max ${fmt(maxH)}, avg ${fmt(avgH)} (budget F = ${p.F} h).
         ${plan.unassigned > 0
           ? `<span class="error">${plan.unassigned} sorties could not be assigned to any aircraft — the fleet is too small for this plan; see Section 6 (Minimum Fleet Size).</span>`
           : '<span class="ok">All sorties successfully assigned within the gap and budget constraints.</span>'}</p>
 
-        <h4>Gantt chart &mdash; who flies when (first ${Math.min(GANTT_DAYS, p.T_days)} days)</h4>
+        <h4>Gantt chart &mdash; who flies when (first ${Math.min(PLAN_GANTT_DAYS, p.T_days)} days)</h4>
         ${planGanttSvg(p, d, plan)}
       </div>`;
   });
@@ -620,7 +621,6 @@ function renderFleetSize(p, fs) {
     <tbody>
       ${row('&theta; = 0.5 (zero expected loss)', fs.half)}
       ${row('&theta; = 1.0 (guaranteed full coverage)', fs.full)}
-      ${row(`&theta; = ${fmt(fs.theta, 2)} (your custom threshold)`, fs.custom)}
     </tbody></table>`;
 }
 
@@ -829,7 +829,8 @@ function renderIconArray(p, d, s1, bl) {
 
 /* ---------------- Shared helpers for the extra charts ---------------- */
 
-const GANTT_DAYS = 10; // window shown by the Gantt charts; set to 30 (or more) to show the whole period
+const GANTT_DAYS = 10; // window of the combined all-plans Gantt; set to 30 (or more) to show the whole period
+const PLAN_GANTT_DAYS = 5; // window of the Gantt chart under each plan
 
 function mixRGB(a, b, t) { t = Math.max(0, Math.min(1, t)); return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(',')})`; }
 const HM_RED = [214, 69, 69], HM_MID = [214, 216, 222], HM_BLUE = [42, 120, 214], SEQ_LO = [236, 241, 250], SEQ_HI = [20, 70, 150];
@@ -944,7 +945,7 @@ function renderPayoffHeatmap(p, d, s1, s3) {
 
 // One plan: one row per aircraft, a bar per sortie, coloured by barrier type.
 function planGanttSvg(p, d, plan) {
-  const days = Math.min(GANTT_DAYS, p.T_days), win = days * 24, K = p.K;
+  const days = Math.min(PLAN_GANTT_DAYS, p.T_days), win = days * 24, K = p.K;
   const unassigned = plan.events.filter(e => e.aircraft === null && e.start < win);
   const rows = p.N + (unassigned.length ? 1 : 0);
   const ml = 58, mr = 10, W = 960, rh = p.N > 40 ? 9 : 13, top = 22, H = top + rows * rh + 26;
@@ -1470,7 +1471,9 @@ function runAll() {
   renderStage3(p, d, s3);
   renderMixGantt(p, d, s3);
   renderMixCalendar(p, d, s1, s3);
-  renderMixClock(p, d, s1, s3);
+  // The radial clock is hidden in index.html for now; only draw it when its block is visible.
+  const clockBlock = document.getElementById('mixClockBlock');
+  if (clockBlock && !clockBlock.hidden) renderMixClock(p, d, s1, s3);
   setupPlayback(p, d, s3, s1);
   renderFleetSize(p, fs);
   renderBaselines(p, s1, bl);
@@ -1492,6 +1495,8 @@ function resetDefaults() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // experiments.html loads this file only for its algorithms; it has no planner form.
+  if (!document.getElementById('runBtn')) return;
   buildBarrierRows(parseInt(document.getElementById('K').value, 10));
 
   document.getElementById('K').addEventListener('change', () => {

@@ -414,6 +414,33 @@
               floor/ceiling candidates, as in the widget above.</p>
           </div>
         </details>
+        <div class="widget">
+          <div class="widget-title">Watch column generation work</div>
+          <p class="widget-sub">Each dot in the triangle is a plan (corners = all sorties on one type); the star is the
+            target m* = h*/τ<sub>p</sub>. The restricted LP can only mix the plans it has, so it reaches the closest
+            point of their shaded hull; the dashed line is the remaining gap. The duals λ<sub>k</sub> point to the
+            under-covered type, and pricing adds the plan that helps most. Press Step to go one move at a time.</p>
+          <div class="controls">
+            <div class="ctl"><label for="cgStart">Start the loop with</label>
+              <select id="cgStart">
+                <option value="equal">One plan: an equal split of the sorties</option>
+                <option value="vp">One plan: value-proportional split</option>
+                <option value="canon">The paper's start: all K canonical plans</option>
+              </select></div>
+            <div class="btn-row"><button class="btn" id="cgStep">Step</button><button class="btn ghost" id="cgPlay">&#9654; Play</button><button class="btn ghost" id="cgReset">Reset</button></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start">
+            <div class="chart" style="flex:1 1 360px;max-width:460px"><svg id="cgSvg" viewBox="0 0 420 370" role="img" aria-label="Column generation on the plan triangle"></svg></div>
+            <div style="flex:1 1 280px;min-width:0" id="cgPanel"></div>
+          </div>
+          <p class="widget-sub" id="cgMsg" style="margin-top:.6rem"></p>
+          <p class="widget-sub" style="margin:0"><b>Note.</b> Every plan uses exactly N<sub>srt</sub> sorties and
+            Σh*<sub>k</sub> = B<sub>eff</sub>, so in LP (9) as written the slacks must add to zero whenever it is
+            feasible: the gap can never be positive. Here the slack may go both ways (over- or under-coverage,
+            ε<sup>+</sup> and ε<sup>−</sup>), which keeps the LP feasible and makes the gap measure how far m* is
+            from the plans collected so far.</p>
+        </div>
+
         <div class="note look"><span class="tag">Look closer · not in the paper</span><br>
           The K canonical plans <em>already</em> reproduce h* exactly: mix them with probabilities
           s<sub>k</sub> = h*<sub>k</sub>/B<sub>eff</sub> (<span id="canonMix"></span>). The gap is zero on round

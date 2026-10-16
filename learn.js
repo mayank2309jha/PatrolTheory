@@ -640,8 +640,140 @@ render.s6 = () => {
   $('#drawnPlan').textContent = 'Spin to pick a plan.';
   render.simTable();
   $('#canonMix').textContent = [0, 1, 2].map(k => `${NAMES[k]} ${fmt(s1.h[k] / d.Beff, 3)}`).join(', ');
+  cgReset();
 };
 function binom(n, r) { let c = 1; for (let i = 0; i < r; i++) c = (c * (n - i)) / (i + 1); return Math.round(c); }
+
+/* ---------------- §6.3 column generation animation ---------------- */
+
+// Small dense simplex (Bland's rule) for min c·x s.t. A x = b, x ≥ 0, b ≥ 0, started from a basis whose
+// columns form the identity. Returns x and the duals y (= c_B B⁻¹, read off the initial identity columns).
+function lpSolve(A, b, c, basis0) {
+  const m = A.length, n = c.length, T = A.map((r, i) => [...r, b[i]]), basis = basis0.slice();
+  for (let it = 0; it < 500; it++) {
+    let enter = -1;
+    for (let j = 0; j < n && enter < 0; j++) {
+      if (basis.includes(j)) continue;
+      let r = c[j]; for (let i = 0; i < m; i++) r -= c[basis[i]] * T[i][j];
+      if (r < -1e-9) enter = j;
+    }
+    if (enter < 0) break;
+    let row = -1, best = Infinity;
+    for (let i = 0; i < m; i++) if (T[i][enter] > 1e-12) { const q = T[i][n] / T[i][enter]; if (q < best - 1e-12 || (Math.abs(q - best) <= 1e-12 && basis[i] < basis[row])) { best = q; row = i; } }
+    if (row < 0) break; // unbounded (cannot happen here)
+    const pv = T[row][enter];
+    for (let j = 0; j <= n; j++) T[row][j] /= pv;
+    for (let i = 0; i < m; i++) if (i !== row && Math.abs(T[i][enter]) > 0) { const fct = T[i][enter]; for (let j = 0; j <= n; j++) T[i][j] -= fct * T[row][j]; }
+    basis[row] = enter;
+  }
+  const x = new Array(n).fill(0); basis.forEach((j, i) => { x[j] = T[i][n]; });
+  const y = basis0.map((_, i) => basis.reduce((acc, j, r) => acc + c[j] * T[r][basis0[i]], 0));
+  return { x, y };
+}
+
+// Restricted master: min Σ(ε⁺ + ε⁻) s.t. Σ_j m_jk s_j + ε⁻_k − ε⁺_k = m*_k, Σ_j s_j = 1.
+// Columns: plans, then ε⁻ (k), ε⁺ (k), then one artificial for the probability row.
+function cgMaster(cols, mStar) {
+  const K = mStar.length, J = cols.length, n = J + 2 * K + 1, BIG = 1e6;
+  const A = [], b = [];
+  for (let k = 0; k < K; k++) { const r = new Array(n).fill(0); cols.forEach((m, j) => { r[j] = m[k]; }); r[J + k] = 1; r[J + K + k] = -1; A.push(r); b.push(mStar[k]); }
+  { const r = new Array(n).fill(0); for (let j = 0; j < J; j++) r[j] = 1; r[n - 1] = 1; A.push(r); b.push(1); }
+  const c = new Array(n).fill(0); for (let k = 0; k < 2 * K; k++) c[J + k] = 1; c[n - 1] = BIG;
+  const { x, y } = lpSolve(A, b, c, [...Array(K).keys()].map(k => J + k).concat([n - 1]));
+  const s = x.slice(0, J), point = mStar.map((_, k) => cols.reduce((a, m, j) => a + s[j] * m[k], 0));
+  const gap = x.slice(J, J + 2 * K).reduce((a, v) => a + v, 0);
+  return { s, point, gap, lambda: y.slice(0, K), nu: y[K] };
+}
+
+const cg = { cols: [], phase: 'solve', round: 0, res: null, price: null, done: false, timer: null, added: -1 };
+function cgStartCols(mode) {
+  const N = compute().d.Nsrt;
+  if (mode === 'canon') return [0, 1, 2].map(k => [0, 1, 2].map(i => (i === k ? N : 0)));
+  const w = mode === 'vp' ? P.n.map((n, k) => n * P.v[k]) : [1, 1, 1], tw = sum(w);
+  const m = w.map(x => Math.floor((N * x) / tw)); m[2] += N - sum(m);
+  return [m];
+}
+function cgReset() {
+  if (!$('#cgSvg')) return;
+  if (cg.timer) { clearInterval(cg.timer); cg.timer = null; $('#cgPlay').innerHTML = '&#9654; Play'; }
+  Object.assign(cg, { cols: cgStartCols($('#cgStart').value), phase: 'solve', round: 0, res: null, price: null, done: false, added: -1 });
+  $('#cgStep').disabled = false;
+  cgDraw('Press Step: solve the restricted LP over the plans collected so far.');
+}
+function cgStep() {
+  if (cg.done) return;
+  const { d, mStar } = compute(), N = d.Nsrt;
+  if (cg.phase === 'solve') {
+    cg.round++; cg.res = cgMaster(cg.cols, mStar); cg.price = null; cg.added = -1;
+    cg.phase = 'price';
+    const r = cg.res;
+    cgDraw(`Round ${cg.round}: the best mix of the ${cg.cols.length} plan(s) reaches the cross; it misses m* by Σ|ε| = ${fmt(r.gap, 2)} sorties. ` +
+      `Duals λ = (${r.lambda.map(x => fmt(x, 2)).join(', ')}), ν = ${fmt(r.nu, 2)}: a positive λ<sub>k</sub> marks a type the mix under-covers.`);
+  } else if (cg.phase === 'price') {
+    const r = cg.res, scores = [0, 1, 2].map(k => r.lambda[k] * N + r.nu);
+    const kBest = scores.indexOf(Math.max(...scores)), cand = [0, 1, 2].map(i => (i === kBest ? N : 0));
+    const exists = cg.cols.some(m => m.join() === cand.join());
+    cg.price = { scores, kBest };
+    if (scores[kBest] <= 1e-7 || exists) {
+      cg.done = true; $('#cgStep').disabled = true;
+      if (cg.timer) { clearInterval(cg.timer); cg.timer = null; $('#cgPlay').innerHTML = '&#9654; Play'; }
+      cgDraw(r.gap < 1e-6
+        ? `Stop: the gap is 0 and no plan has positive reduced cost. The mix uses ${r.s.filter(x => x > 1e-6).length} plan(s) with probabilities ${r.s.map(x => fmt(x, 3)).join(', ')}.${$('#cgStart').value === 'canon' ? ' Starting from the K canonical plans, as the paper does, the loop stops in round 1: they already contain m* in their hull. That is why §6.4 builds the floor/ceiling plans instead (see the note below).' : ' The columns pricing adds are always canonical plans (all sorties on one type), so in the months they are drawn whole types go unpatrolled; §6.4 and §11 explain why the floor/ceiling plans are the better choice.'}`
+        : `Stop: no plan improves the LP (gap ${fmt(r.gap, 2)}).`);
+    } else {
+      cg.phase = 'solve';
+      cgDraw(`Pricing: a plan's value is Σλ<sub>k</sub>m<sub>k</sub> + ν. Putting all ${N} sorties on one type scores ${scores.map((x, k) => `${NAMES[k]} ${fmt(x, 1)}`).join(', ')}. ` +
+        `The best is all on <b>${NAMES[kBest]}</b> (positive reduced cost), so that column is added. Press Step to re-solve.`, cand);
+      cg.cols.push(cand); cg.added = cg.cols.length - 1;
+    }
+  }
+}
+function cgDraw(msg, pending) {
+  const { d, mStar } = compute(), N = d.Nsrt;
+  const V = [[210, 44], [36, 330], [384, 330]]; // corners: all on High, Medium, Low
+  const pt = m => { const w = m.map(x => x / N); return [w[0] * V[0][0] + w[1] * V[1][0] + w[2] * V[2][0], w[0] * V[0][1] + w[1] * V[1][1] + w[2] * V[2][1]]; };
+  let b = '';
+  for (let i = 1; i < 10; i++) { const t = i / 10; [[0, 1, 2], [1, 2, 0], [2, 0, 1]].forEach(([a, c, e]) => { const p1 = V[a].map((v, z) => v * t + V[c][z] * (1 - t)), p2 = V[a].map((v, z) => v * t + V[e][z] * (1 - t)); b += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" stroke="var(--border)" stroke-width=".6"/>`; }); }
+  b += `<polygon points="${V.map(v => v.join(',')).join(' ')}" fill="none" stroke="var(--text-2)" stroke-width="1.2"/>`;
+  [['All on High', 0, 0, -22], ['All on Medium', 1, -4, 22], ['All on Low', 2, 4, 22]].forEach(([l, i, dx, dy]) => { b += `<text x="${V[i][0] + dx}" y="${V[i][1] + dy}" text-anchor="${i === 1 ? 'start' : i === 2 ? 'end' : 'middle'}" font-size="11" fill="var(--text-2)">${l}</text>`; });
+  // Hull of the current columns (≤ 4 points): sort by angle around the centroid.
+  const P2 = cg.cols.map(pt);
+  if (P2.length >= 2) {
+    const cx = sum(P2.map(q => q[0])) / P2.length, cy = sum(P2.map(q => q[1])) / P2.length;
+    const ord = P2.slice().sort((a, c) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(c[1] - cy, c[0] - cx));
+    b += `<polygon points="${ord.map(q => q.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>`;
+  }
+  const S = pt(mStar);
+  if (cg.res) {
+    const X = pt(cg.res.point);
+    if (cg.res.gap > 1e-6) b += `<line x1="${X[0]}" y1="${X[1]}" x2="${S[0]}" y2="${S[1]}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    b += `<path d="M${X[0] - 6},${X[1] - 6}L${X[0] + 6},${X[1] + 6}M${X[0] - 6},${X[1] + 6}L${X[0] + 6},${X[1] - 6}" stroke="var(--text)" stroke-width="2"/>`;
+  }
+  cg.cols.forEach((m, j) => { const q = pt(m); b += `<circle cx="${q[0]}" cy="${q[1]}" r="${j === cg.added ? 8 : 6}" fill="${j === cg.added ? 'var(--ok)' : 'var(--text)'}" stroke="var(--surface)" stroke-width="2" ${tipAttr(`Plan ${j + 1}: (${m.join(', ')}) sorties`)}/><text x="${q[0] - 10}" y="${q[1] + 4}" text-anchor="end" font-size="11" font-weight="700">${j + 1}</text>`; });
+  if (pending) { const q = pt(pending); b += `<circle cx="${q[0]}" cy="${q[1]}" r="11" fill="none" stroke="var(--ok)" stroke-width="2.5"/>`; }
+  const star = (x, y, r) => [...Array(10).keys()].map(i => { const a = (Math.PI / 5) * i - Math.PI / 2, rr = i % 2 ? r * 0.45 : r; return `${(x + rr * Math.cos(a)).toFixed(1)},${(y + rr * Math.sin(a)).toFixed(1)}`; }).join(' ');
+  b += `<polygon points="${star(S[0], S[1], 9)}" fill="var(--warn)" stroke="var(--surface)" stroke-width="1"/><text x="${S[0] + 11}" y="${S[1] + 4}" font-size="11" font-weight="700">m*</text>`;
+  $('#cgSvg').innerHTML = b;
+  const r = cg.res;
+  const rows = cg.cols.map((m, j) => `<tr${j === cg.added ? ' style="background:var(--ok-soft)"' : ''}><td>${j + 1}</td><td>${m.map((x, k) => `<span class="t${k}">${x}${SH[k]}</span>`).join(' ')}</td><td>${r && j < r.s.length ? fmt(r.s[j], 3) : '—'}</td></tr>`).join('');
+  $('#cgPanel').innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Plan</th><th>Sorties (H M L)</th><th>s<sub>j</sub></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="stats"><div class="stat ${r && r.gap < 1e-6 ? 'good' : 'bad'}"><b>Gap Σ|ε|</b><span>${r ? fmt(r.gap, 2) : '—'}</span><small>sorties away from m* = (${mStar.map(x => fmt(x, 1)).join(', ')})</small></div>
+    <div class="stat"><b>Duals λ</b><span style="font-size:.95rem">${r ? r.lambda.map(x => fmt(x, 2)).join(', ') : '—'}</span><small>${cg.price ? `pricing scores ${cg.price.scores.map(x => fmt(x, 0)).join(', ')}` : 'under-coverage signal per type'}</small></div></div>`;
+  $('#cgMsg').innerHTML = msg;
+}
+function initCG() {
+  if (!$('#cgSvg')) return;
+  $('#cgStart').addEventListener('change', cgReset);
+  $('#cgReset').addEventListener('click', cgReset);
+  $('#cgStep').addEventListener('click', cgStep);
+  $('#cgPlay').addEventListener('click', () => {
+    if (cg.timer) { clearInterval(cg.timer); cg.timer = null; $('#cgPlay').innerHTML = '&#9654; Play'; return; }
+    if (cg.done) cgReset();
+    $('#cgPlay').innerHTML = '&#10073;&#10073; Pause';
+    cg.timer = setInterval(() => { cgStep(); if (cg.done && cg.timer) { clearInterval(cg.timer); cg.timer = null; $('#cgPlay').innerHTML = '&#9654; Play'; } }, 1400);
+  });
+  cgReset();
+}
 
 /* ---------------- §7 ---------------- */
 let planIdx = 0, planCache = null;
@@ -1130,7 +1262,7 @@ function boot() {
     $(`#${id} .lesson-head`).after(chip);
   });
   buildToc(); buildQuizzes(); updateProgress();
-  initS1(); initS2(); initS3(); initS4(); initS5(); initS6(); initS7(); initS8(); initS9(); initS10(); initS11(); initS12();
+  initS1(); initS2(); initS3(); initS4(); initS5(); initS6(); initCG(); initS7(); initS8(); initS9(); initS10(); initS11(); initS12();
   initGlossary(); initTip();
   fillChips();
   $('#tocToggle').addEventListener('click', () => $('#toc').classList.toggle('collapsed'));

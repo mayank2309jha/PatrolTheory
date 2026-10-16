@@ -35,16 +35,54 @@ section {
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 
-.param-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.75rem 1.5rem;
-  margin-bottom: 1rem;
+/* Sections 1 and 2 side by side; they stack on narrow screens */
+.top-row { display: flex; flex-wrap: wrap; gap: 0 1.25rem; align-items: flex-start; }
+.top-row > section { min-width: 0; }
+.params-section { flex: 1 1 540px; }
+.derived-section { flex: 1 1 300px; }
+
+.ico {
+  width: 16px; height: 16px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  color: var(--accent); vertical-align: -3px;
 }
 
-.param { display: flex; flex-direction: column; gap: 0.25rem; }
-.param label { font-size: 0.85rem; font-weight: 600; }
-.param input { padding: 0.35rem 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95rem; }
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1.25rem;
+  margin-bottom: 0.4rem;
+}
+@media (max-width: 560px) { .param-grid { grid-template-columns: 1fr; } }
+
+.param {
+  display: grid;
+  grid-template-columns: 16px 1fr 4.6rem 0.9rem;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 0.15rem 0;
+  cursor: default;
+}
+.param input { width: 100%; padding: 0.25rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9rem; }
+.param .unit { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+.note { margin: 0.2rem 0 0.4rem; }
+
+#barrierTable { width: auto; margin: 0.3rem 0 0.4rem; font-size: 0.88rem; }
+#barrierTable th, #barrierTable td { padding: 0.25rem 0.5rem; }
+#barrierTable input[type=number] { width: 4.6rem; }
+
+.kv-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.kv-list div {
+  display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.55rem; background: var(--bg-alt); border-radius: 4px; font-size: 0.88rem;
+}
+.kv-list b { font-variant-numeric: tabular-nums; }
+
+.scroll-box { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; margin: 0.3rem 0 0.8rem; }
+.scroll-box table { margin: 0; }
+.scroll-box thead th { position: sticky; top: 0; }
 
 table {
   border-collapse: collapse;
@@ -156,3 +194,8 @@ footer { margin-top: 2rem; text-align: center; }
   font-size: 1rem;
 }
 .learn-btn:hover { background: #164b8f; }
+
+/* Phones: wide data tables scroll sideways instead of widening the page */
+@media (max-width: 700px) {
+  table { display: block; overflow-x: auto; }
+}
